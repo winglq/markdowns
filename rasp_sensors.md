@@ -1,7 +1,9 @@
-title: Raspberry 购买清单
+title: Raspberry 记录
 author: Qing
 date: 2017-10-17
-description: Raspberry PI 3欲购买的传感器或者其他周边
+description: 关于Raspberry PI 3的各种记录
+
+# Raspberry 记录
 
 ### Raspberry 购买清单
 
@@ -11,3 +13,7 @@ DHT11 温湿度传感器|<5|
 DS18B20 温度传感器|<5|
 PI 3 外壳|<15
 摄像头模块|价格差别较大
+
+### 数据网站
+[Yeelink](http://www.yeelink.net)
+[COSM](https://cosm.com)
