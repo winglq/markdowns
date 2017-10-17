@@ -3,7 +3,7 @@ author: Qing
 date: 2017-10-17
 description: Raspberry PI 3欲购买的传感器或者其他周边
 
-### Raspberry 传感器清单
+### Raspberry 购买清单
 
 名称|价格|其他
 ----|----|----
