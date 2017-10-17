@@ -13,6 +13,7 @@ DHT11 温湿度传感器|<5|
 DS18B20 温度传感器|<5|
 PI 3 外壳|<15
 摄像头模块|价格差别较大
+HC-SR04 |<5
 
 ### 数据网站
 * [Yeelink](http://www.yeelink.net)
