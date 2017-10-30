@@ -1,5 +1,6 @@
 title: Raspberry 记录
-author: Qing
+author: qing
+acl: 00
 date: 2017-10-17
 description: 关于Raspberry PI 3的各种记录
 
