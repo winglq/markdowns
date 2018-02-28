@@ -7,7 +7,7 @@ category:
 
 # Crypto
 
-## Encrypting
+## Crypting
 When encrypting, you use their public key to write message and they use their private key to read it.
 
 A sample code which demotrates how to ecncrypt/decrypt using private key only.(symmetric)
@@ -55,7 +55,7 @@ RSA is rather slow so it’s hardly used to encrypt data , more frequently it is
 
 ### Public key cryptography, or asymmetrical cryptography
 Public key cryptography, or asymmetrical cryptography, is any cryptographic system that uses pairs of keys: public keys which may be disseminated widely, and private keys which are known only to the owner. This accomplishes two functions: authentication, where the public key verifies a holder of the paired private key sent the message, and encryption, where only the paired private key holder can decrypt the message encrypted with the public key.
-*In a public key encryption system, any person can encrypt a message using the receiver's public key.* That encrypted message can only be decrypted with the receiver's private key. To be practical, the generation of a public and private key -pair must be computationally economical. 
+*In a public key encryption system, any person can encrypt a message using the receiver's public key.* That encrypted message can only be decrypted with the receiver's private key. To be practical, the generation of a public and private key -pair must be computationally economical.
 
 ## Signing
 When signing, you use your private key to write message's signature, and they use your public key to check if it's really yours.
@@ -64,11 +64,11 @@ A signing and verifying example.
     # You can create a detached signature for a message using the rsa.sign() function:
     >>> (pubkey, privkey) = rsa.newkeys(512)
     >>> message = 'Go left at the blue tree'
-    >>> signature = rsa.sign(message, privkey, 'SHA-1')
+    >>> signature = rsa.sign(message, privkey, 'SHA-1') # use privkey to crypt message and use SHA-1 to get the digest data.
     # This hashes the message using SHA-1. Other hash methods are also possible, check the rsa.sign() function documentation for details. The hash is then signed with the private key.
     # In order to verify the signature, use the rsa.verify() function. This function returns True if the verification is successful
     >>> message = 'Go left at the blue tree'
-    >>> rsa.verify(message, signature, pubkey)
+    >>> rsa.verify(message, signature, pubkey) # use pubkey to crypt message and calculate SHA-1 digest and compare the result to signature.
     True
     
 ### SHA-1
@@ -81,3 +81,53 @@ SHA-1 example.
     m.update(" the spammish repetition")
     print m.digest()
     print m.digest_size
+    
+### Sign CSR procedure
+
+* Application owner generates key pair(public/private key)
+* Create CSR including organization information(such as a distinguished name in the case of an X.509 certificate) and public key
+* Sign the information using private key(CA can use signature and public key to verify the infomation)
+* Send the certificate request file to the CA (Certification Authority) for signing and save the signed certificate request file on your local machine.
+
+### Client check certificate procedure (this is a part of the SSL/TSL procedure)
+
+* Client receives server's certificate
+* Client uses CA's public key to verify that the certificate is never modified.
+* Client uses the public key in the certificate to encrypt information.
+* Server decrypt infomation by private key.
+* new key change
+    
+### X.509
+In cryptography, X.509 is a standard that defines the format of public key certificates. X.509 certificates are used in many Internet protocols, including TLS/SSL, which is the basis for HTTPS, the secure protocol for browsing the web. They are also used in offline applications, like electronic signatures.
+
+Certificate
+
+  * Version Number
+  * Serial Number
+  * Signature Algorithm ID
+  * Issuer Name
+  * Validity period
+    * Not Before
+    * Not After
+  * Subject name
+  * Subject Public Key Info
+    * Public Key Algorithm
+    * Subject Public Key
+  * Issuer Unique Identifier (optional)
+  * Subject Unique Identifier (optional)
+  * Extensions (optional)
+    * ...
+  * Certificate Signature Algorithm
+  * Certificate Signature
+  
+## TLS/SSL
+SSL (and its successor, TLS) is a protocol that operates directly on top of TCP (although there are also implementations for datagram based protocols such as UDP). This way, protocols on higher layers (such as HTTP) can be left unchanged while still providing a secure connection. Underneath the SSL layer, HTTP is identical to HTTPS.
+Working flow:
+* TCP connect 
+* SSL handshake (SSL version/cipher suite/compression method) 
+* server send certificate to client(signed by authority)
+* verify the certificate and being certain this server really is who he claims to be (and not a man in the middle).
+* change a new key. This can be a public key, a "PreMasterSecret" or simply nothing, depending on the chosen ciphersuite. Both the server and the client can now compute the key for the symmetric encryption.
+* The client tells the server that from now on, all communication will be encrypted, and sends an encrypted and authenticated message to the server.
+* The server verifies that the MAC (used for authentication) is correct, and that the message can be correctly decrypted. It then returns a message, which the client verifies as well.
+* The handshake is now finished, and the two hosts can communicate securely.
