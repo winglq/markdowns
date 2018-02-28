@@ -123,6 +123,7 @@ Certificate
 ## TLS/SSL
 SSL (and its successor, TLS) is a protocol that operates directly on top of TCP (although there are also implementations for datagram based protocols such as UDP). This way, protocols on higher layers (such as HTTP) can be left unchanged while still providing a secure connection. Underneath the SSL layer, HTTP is identical to HTTPS.
 Working flow:
+
 * TCP connect 
 * SSL handshake (SSL version/cipher suite/compression method) 
 * server send certificate to client(signed by authority)
