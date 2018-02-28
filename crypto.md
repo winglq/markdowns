@@ -7,8 +7,10 @@ category:
 
 # Crypto
 
+---
+
 ## Crypting
-When encrypting, you use their public key to write message and they use their private key to read it.
+**When encrypting, you use their public key to write message and they use their private key to read it.**
 
 A sample code which demotrates how to ecncrypt/decrypt using private key only.(symmetric)
 
@@ -55,10 +57,10 @@ RSA is rather slow so it’s hardly used to encrypt data , more frequently it is
 
 ### Public key cryptography, or asymmetrical cryptography
 Public key cryptography, or asymmetrical cryptography, is any cryptographic system that uses pairs of keys: public keys which may be disseminated widely, and private keys which are known only to the owner. This accomplishes two functions: authentication, where the public key verifies a holder of the paired private key sent the message, and encryption, where only the paired private key holder can decrypt the message encrypted with the public key.
-*In a public key encryption system, any person can encrypt a message using the receiver's public key.* That encrypted message can only be decrypted with the receiver's private key. To be practical, the generation of a public and private key -pair must be computationally economical.
+**In a public key encryption system, any person can encrypt a message using the receiver's public key.** That encrypted message can only be decrypted with the receiver's private key. To be practical, the generation of a public and private key -pair must be computationally economical.
 
 ## Signing
-When signing, you use your private key to write message's signature, and they use your public key to check if it's really yours.
+**When signing, you use your private key to write message's signature, and they use your public key to check if it's really yours.**
 A signing and verifying example.
 
     # You can create a detached signature for a message using the rsa.sign() function:
