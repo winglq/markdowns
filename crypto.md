@@ -134,3 +134,9 @@ Working flow:
 * The client tells the server that from now on, all communication will be encrypted, and sends an encrypted and authenticated message to the server.
 * The server verifies that the MAC (used for authentication) is correct, and that the message can be correctly decrypted. It then returns a message, which the client verifies as well.
 * The handshake is now finished, and the two hosts can communicate securely.
+
+### Server Name Indication
+Server Name Indication (SNI) is an extension to the TLS computer networking protocol by which a client indicates which hostname it is attempting to connect to at the start of the handshaking process. This allows a server to present multiple certificates on the same IP address and TCP port number and hence allows multiple secure (HTTPS) websites (or any other Service over TLS) to be served by the same IP address without requiring all those sites to use the same certificate. It is the conceptual equivalent to HTTP/1.1 name-based virtual hosting, but for HTTPS. The desired hostname is not encrypted, so an eavesdropper can see which site is being requested.
+
+TLS handshake happens before the server sees any HTTP headers. Therefore, it is not possible for the server to use the information in the HTTP host header to decide which certificate to present and as such only names covered by the same certificate can be served from the same IP address.
+**SNI addresses this issue by having the client send the name of the virtual domain as part of the TLS negotiation.**
