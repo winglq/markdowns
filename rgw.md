@@ -24,9 +24,7 @@ acl: 00
 
     :::c++
     class RGWFrontend {
-    public:
-      virtual ~RGWFrontend() {}
-    
+      ...
       virtual int init() = 0;
     
       virtual int run() = 0;
@@ -109,4 +107,39 @@ URL分发是资源注册的反向过程，通过URL找到对应的handler。如�
 
 REST基本操作GET/PUT/POST/DELETE...在RGWHandler_REST中定义，这个类主要做为基类给其他类使用。
 
-## RGW store
+## S3接口实现
+
+### list bucket操作
+
+List操作最终会调用到`rgw_op.cc::RGWListBuckets::execute`，这里主要分析下这个函数的内容。
+用户所有的buckets存储在`user_id.to_str()+RGW_BUCKETS_OBJ_SUFFIX`对象所在的omap中，其中`RGW_BUCKETS_OBJ_SUFFIX=".buckets"`。
+
+    :::c++
+    void rgw_get_buckets_obj(const rgw_user& user_id, string& buckets_obj_id)
+    {
+      buckets_obj_id = user_id.to_str();
+      buckets_obj_id += RGW_BUCKETS_OBJ_SUFFIX;
+    }
+
+而这个Object位于在`user_uid_pool`中。定位到Bucket对应的对象后，rgw会发送一个`class=user, method=list_buckets`的操作。对应的Deamon收到这个操作后根据注册内容查找到的函数为`cls_user.cc::cls_user_list_buckets`，这个函数再调用`class_api.cc::cls_cxx_map_get_vals`获取多个omap的value,最终得到那个用户所有的Bucket。各个pool还有Bucket的关系如下所示。
+![](rgw_pool_arch.png)
+
+## RGW Bucket
+RGW的一个Bucket对应到Rados上的三个pool(`data_pool`,`data_extra_pool`,`index_pool`)，这三个pool可以指向同一个pool。
+
+## RGW Store
+
+### RGWStoreManager
+
+`RGWStoreManager::get_storage`返回一个`RGWRados`对象或者`RGWCache<RGWRados>`。`get_storage`最终会调用`RGWRados::init_rados`。这个函数会初始化一组`librados::Rados`对象,并且连接到rados集群。这些`Rados`对象会在被获取时会被放入一个`thread_id->Rados`的map中，这样单个线程在使用这些对象时不会发生争抢。接着会初始`RGWRados::meta_mgr`和`RGWRados::data_log`属性。
+
+`class RGWRados`用于跟Rados集群交互。比如一组`open_*_ctx`函数用于打开对应pool的上下文。
+
+## ToDO
+
+* Thread
+* GC
+* zone/zone group
+* What Is Bucket Index?
+
+It’s a different kind of metadata, and kept separately. The bucket index holds a key-value map in rados objects. By default it is a single rados object per bucket, but it is possible since Hammer to shard that map over multiple rados objects. The map itself is kept in omap, associated with each rados object. The key of each omap is the name of the objects, and the value holds some basic metadata of that object – metadata that shows up when listing the bucket. Also, each omap holds a header, and we keep some bucket accounting metadata in that header (number of objects, total size, etc.).
