@@ -71,7 +71,8 @@ K8S使用Cobra做为命令行框架。
 
 init命令会初始化一个`MasterConfiguration`对象，并调在Scheme中查找是否有这个type的默认函数，如果有的话会调用这些函数用于为这个对象设置默认值。
 init命令会根据传入参数设置`SelfHosting`, `StoreCertsInSecrets`, `HighAvailability`, `CoreDNS`, `DynamicKubeletConfig`, `Auditing`这些feature是否被启用, 比如`SelfHosting=1,StoreCertsInSecrets=0`。
-根据初始化文件配置API `Init`对象，如果没有配置就使用默认值。IP和Port等信息则通过动态获取。需要部署的组件版本在`KubernetesVersion`中配置，可以是具体的版本号，也可以是版本label，kubadm会根据label获得正确的版本号。要部署的版本号需要大于程序内定义的最小版本号。
+根据初始化文件配置API `Init`对象，如果没有配置就使用默认值。IP和Port等信息则通过动态获取。需要部署的组件版本在`KubernetesVersion`中配置，可以是具体的版本号，也可以是版本label，kubadm会根据label获得正确的版本号。要部署的版本号需要大于程序内定义的最小版本号。如果没有指定[Token](https://kubernetes.io/docs/reference/setup-tools/kubeadm/kubeadm-token/)的话，会生成一个新的Token。
+`Init`对象生成之后，程序开始绑定各个命令行参数，默认值为cfg中的值。
 
 ### Features Gates
 Feature gates are a set of key=value pairs that describe alpha or experimental features.

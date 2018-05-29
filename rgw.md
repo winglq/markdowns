@@ -40,7 +40,7 @@ J版中RGW默认使用`RGWMongooseFrontend`，这个类继承自`RGWFrontend`。
 
 #### RGWMongooseFrontend
 
-在`rgw_civetweb_frontend.cc::RGWMongooseFrontend::run`中设置civeweb的启动参数，包括端口，keep alive,线程数等。设置回调函数,包括`begin_request`, `log_message`, `log_access`。`begin_request`最终会调用`rgw_process.cc::process_request`，`process_request`通过`rest->get_handler`获取资源的handler, `get_handler`其实就是URL分发的过程，具体步骤如下节。资源handler使用正确的op来最终处理这个请求。
+在`rgw_civetweb_frontend.cc::RGWMongooseFrontend::run`中设置civeweb的启动参数，包括端口，keep alive,线程数等。设置回调函数,包括`begin_request`, `log_message`, `log_access`。`begin_request`最终会调用`rgw_process.cc::process_request`，`process_request`通过`rest->get_handler`获取资源的handler, `get_handler`其实就是URL分发的过程，具体步骤如下节。资源handler使用正确的op来最终处理这个请求。在Handler中op_XXX 开头的函数对应HTTP method，而`get_op`则是通过HTTP method获得对应的op对象, 这个函数在`rgw_rest.cc`中实现。
 
 ### URL分发
 
@@ -111,7 +111,7 @@ REST基本操作GET/PUT/POST/DELETE...在RGWHandler_REST中定义，这个类主
 
 ### list bucket操作
 
-List操作最终会调用到`rgw_op.cc::RGWListBuckets::execute`，这里主要分析下这个函数的内容。
+List主要调用过程`rgw_process.cc::process_request`->`rgw_rest.cc::RGWREST::get_handler`->`rgw_rest.cc::RGWHandler_REST::get_op`->`rgw_rest_s3.cc::RGWHandler_REST_Service_S3::op_get`->`rgw_process.cc::rgw_process_authenticated`->`op->execute()`->`rgw_op.cc::RGWListBuckets::execute`，这里主要分析下这个函数的内容。
 用户所有的buckets存储在`user_id.to_str()+RGW_BUCKETS_OBJ_SUFFIX`对象所在的omap中，其中`RGW_BUCKETS_OBJ_SUFFIX=".buckets"`。
 
     :::c++
@@ -124,7 +124,15 @@ List操作最终会调用到`rgw_op.cc::RGWListBuckets::execute`，这里主要�
 而这个Object位于在`user_uid_pool`中。定位到Bucket对应的对象后，rgw会发送一个`class=user, method=list_buckets`的操作。对应的Deamon收到这个操作后根据注册内容查找到的函数为`cls_user.cc::cls_user_list_buckets`，这个函数再调用`class_api.cc::cls_cxx_map_get_vals`获取多个omap的value,最终得到那个用户所有的Bucket。各个pool还有Bucket的关系如下所示。
 ![](rgw_pool_arch.png)
 
-## RGW Bucket
+### create bucket操作
+Create的调用过程跟list类似，真正的操作在`RGWCreateBucket::execute`中执行。
+在domain_root pool中创建一个以bucket name命名的object。Bucket的对象名字由tenant和bucketname两部分组成, 如果tenant为空，那么bucketname就是全局唯一的，多个用户不能创建相同名字的Bucket。如果创建Bucket时带有locationConstraint那么当前region需要满足这个限制，否则无法创建。Bucket的Placement rule需要在zone group的placement targets中，否则不满足rule就不能创建。如果用户试图创建一个已经存在的Bucket，而且这个Bucket的拥有者和这次的创建者冲突，那么创建失败。excute会调用`store->create_bucket`。
+`rgw_rados.cc::RGWRados::create_bucket`过程主要完成下面的工作。获得Index pool的context，初始化Index。初始化Index的主要内容就是创建Index对象，对象的命名规则如下。Base Index对象已`.dir.`开头，后跟`bucket_id`，如果没有启动index shard的话唯一的Index对象名就是base index对象名。如果有shard，就在后面添加点和数字，比如第一个shard的index就是`.dir.bucket_id.1`。Bucket的信息会放在domain_root，已`.bucket.meta.`+Bucketname命名的对象中。
+
+### create object操作
+
+
+# RGW Bucket
 RGW的一个Bucket对应到Rados上的三个pool(`data_pool`,`data_extra_pool`,`index_pool`)，这三个pool可以指向同一个pool。
 
 ## RGW Store
@@ -135,6 +143,11 @@ RGW的一个Bucket对应到Rados上的三个pool(`data_pool`,`data_extra_pool`,`
 
 `class RGWRados`用于跟Rados集群交互。比如一组`open_*_ctx`函数用于打开对应pool的上下文。
 
+## Rados library
+`librados.hpp::librados::ObjectWriteOperation`将多个写操作操作聚合到这个对象中，这个类是`librados.hpp::librados::ObjectOperation`的子类。`librados::ObjectOperation`包含一个`ObjectOperationImpl`的对象，这个对象中有一个全局的`::ObjectOperation`对象，用于下发对OSD的操作。
+`Objecter.h::ObjectOperation::call`生成一个新的对osd的远程调用，把调用信息包括class的名字，method，和给method的参数。这个函数只是将远程调用信息放入list中，并不是立即调用。需要`op_submit`将操作提交给osd。
+
+
 ## ToDO
 
 * Thread
@@ -143,3 +156,4 @@ RGW的一个Bucket对应到Rados上的三个pool(`data_pool`,`data_extra_pool`,`
 * What Is Bucket Index?
 
 It’s a different kind of metadata, and kept separately. The bucket index holds a key-value map in rados objects. By default it is a single rados object per bucket, but it is possible since Hammer to shard that map over multiple rados objects. The map itself is kept in omap, associated with each rados object. The key of each omap is the name of the objects, and the value holds some basic metadata of that object – metadata that shows up when listing the bucket. Also, each omap holds a header, and we keep some bucket accounting metadata in that header (number of objects, total size, etc.).
+* Object operation transaction
