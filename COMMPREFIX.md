@@ -17,7 +17,6 @@ acl: 11
 要解决这个问题就要找到一种方法从omap中快速提取CommonPrefix的方法。由于Ceph omap是通过rocksdb实现的，所以问题就变成rocksdb能否快速提取Key中的CommonPrefix。经过跟社区的讨论，视乎可以通过先找出第一条记录，然后使用比第一个CommonPrefix的前缀大，但是比下一个CommonPrefix的前缀小的Seek前缀来快速定位下一个CommonPrefix的前缀。
 为了验证种方法的可行性，我写了一个demo验证，下面是其中的关机代码。
 
-```
     :::c++
     auto it = db->NewIterator(ReadOptions());
     for (it->SeekToFirst(); it->Valid(); ){
@@ -33,7 +32,6 @@ acl: 11
             it->Seek(cmax);
     }
 
-```
 代码中sep就是指S3中的delimiter，通过在第一个CommonPrefix后天就`\uffff`找到下一条不是当前Prefix的记录。
 
 经过简单对比，使用上述方法比完全遍历所有Key来获取CommonPrefix的速度快非常多。
