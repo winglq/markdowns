@@ -79,6 +79,8 @@ URL分发是资源注册的反向过程，通过URL找到对应的handler。如�
 
     } /* get stream handler */
 
+上面的函数中`req_state`在函数`process_request`中构造的时候的已经获得了所有这个request信息，包括用户信息，这个request的env，还有ceph context。在后续的`preprocess`中会根据这些信息把其他属性赋值。`req_state`中的object在`RGWHandler_REST_S3::init_from_header`中赋值。
+
 获取RGWRESTMgr的过程比较简单，就是使用`/`拆分URL然后逐级查找对应的resource。
 
     :::c++
@@ -125,12 +127,53 @@ List主要调用过程`rgw_process.cc::process_request`->`rgw_rest.cc::RGWREST::
 ![](rgw_pool_arch.png)
 
 ### create bucket操作
+
 Create的调用过程跟list类似，真正的操作在`RGWCreateBucket::execute`中执行。
 在domain_root pool中创建一个以bucket name命名的object。Bucket的对象名字由tenant和bucketname两部分组成, 如果tenant为空，那么bucketname就是全局唯一的，多个用户不能创建相同名字的Bucket。如果创建Bucket时带有locationConstraint那么当前region需要满足这个限制，否则无法创建。Bucket的Placement rule需要在zone group的placement targets中，否则不满足rule就不能创建。如果用户试图创建一个已经存在的Bucket，而且这个Bucket的拥有者和这次的创建者冲突，那么创建失败。excute会调用`store->create_bucket`。
 `rgw_rados.cc::RGWRados::create_bucket`过程主要完成下面的工作。获得Index pool的context，初始化Index。初始化Index的主要内容就是创建Index对象，对象的命名规则如下。Base Index对象已`.dir.`开头，后跟`bucket_id`，如果没有启动index shard的话唯一的Index对象名就是base index对象名。如果有shard，就在后面添加点和数字，比如第一个shard的index就是`.dir.bucket_id.1`。Bucket的信息会放在domain_root，已`.bucket.meta.`+Bucketname命名的对象中。
 
 ### create object操作
 
+Create object的op为`rgw_rest_s3.hpp::RGWPostObj_ObjStore_S3`。Create Object的execute操作位于`rgw_op.cc::RGWPostObj::execute`中。
+获取index的shards信息，如果需要reshard就将当前bucket加入到reshard的队列中去。计算md5，如果用户上传的时候提供了md5就需要比较用户上传的md5值和现在计算的结果是一致的，如果不一样说明数据有出错。rgw object数据存储的pool由placement rule确定。从`rgw_rados.h::get_obj_bucket_and_oid_loc`可以得出从一个rgw_obj对象可以得到的rgw_raw_obj.oid的一个最完整的值为`_bucket.marker__ns:instance_name`。其中某些字段可能不存在比如ns,instance。而`rgw_raw_obj.loc`只有在name已`_`开始才会有值。loc的作用是设置ioctx到指定的osd。如果rgw object大于4M，会被分成多个strip，ns就是shadow，oid已strip id开头，所以一个strip的raw obj的oid就是`stripid_bucket.marker__shadow:instance_name`。如果ns和instance都不存在的话rgw_rgw的get_oid函数只返回name不带前缀`_`,也就oid会变成`bucket.marker_name`。如果是multi upload的话在strip id前还要加part id。为了保证对的原子性，对象的元数据最后写入rados中，而且是在一个op中完成的。
+主要数据结构：
+
+    ::c++
+    struct rgw_obj_key {
+        string name;
+        string instance;
+        string ns;
+    }
+
+    struct rgw_bucket {
+        std::string tenant;
+        std::string name;
+        std::string marker;
+        std::string bucket_id;
+        std::string oid;
+    }
+
+    struct rgw_obj {
+        rgw_bucket bucket;
+        rgw_obj_key key;
+    }
+
+    class rgw_obj_select {
+        rgw_obj obj;
+        rgw_raw_obj raw_obj;
+        bool is_raw;
+    }
+
+    struct rgw_raw_obj {
+        rgw_pool pool;
+        std::string oid;
+        std::string loc;
+    }
+
+### get object操作
+
+s3的get op对像是`rgw_rest_s3.hpp::RGWGetObj_ObjStore_S3`，execute操作是`rgw_op.cc::RGWGetObj::execute`
+`RGWRados::Object::Read::iterate`读取对象的内容。在读取Head对象的时候每次都会有一次tag的比较，用于保证读的原子性。
 
 # RGW Bucket
 RGW的一个Bucket对应到Rados上的三个pool(`data_pool`,`data_extra_pool`,`index_pool`)，这三个pool可以指向同一个pool。
