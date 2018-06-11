@@ -173,7 +173,12 @@ Create object的op为`rgw_rest_s3.hpp::RGWPostObj_ObjStore_S3`。Create Object�
 ### get object操作
 
 s3的get op对像是`rgw_rest_s3.hpp::RGWGetObj_ObjStore_S3`，execute操作是`rgw_op.cc::RGWGetObj::execute`
-`RGWRados::Object::Read::iterate`读取对象的内容。在读取Head对象的时候每次都会有一次tag的比较，用于保证读的原子性。
+`RGWRados::Object::Read::iterate`读取对象的内容。读取object的内容前会先读取object state，也就是`rgw_rados.h::RGWObjState`。在读取Head对象的时候每次都会有一次tag的比较，用于保证读的原子性。`get_obj_data`用于处理所对对象的AIO回调，比如drain所有flying io可以基于`get_obj_data`的wait系列函数。
+
+### list objects操作
+
+execute操作`RGWListBucket::execute`。
+获得所有index对象的调用过程`rgw_rados.cc::RGWRados::cls_bucket_list`->`rgw_rados.cc::RGWRados::open_bucket_index`->`rgw_rados.cc::RGWRados::get_bucket_index_objects`。获得所有index对象之后调用`CLSRGWIssueBucketList`函数对象。`CLSRGWIssueBucketList`是`CLSRGWConcurrentIO`的子类，`CLSRGWConcurrentIO`的作用是将多个操作并发发送到rados集群，并发数量是AIO的数量。从代码看一次list n个对象的话，会从每个shard上获取n个对象，然后在这些n*shard_number个对象中取出n个对象做为list的返回。Bucket类有一个shard_id初始化为-1，不知道是什么作用。
 
 # RGW Bucket
 RGW的一个Bucket对应到Rados上的三个pool(`data_pool`,`data_extra_pool`,`index_pool`)，这三个pool可以指向同一个pool。

@@ -18,6 +18,8 @@ acl: 11
 为了验证种方法的可行性，我写了一个demo，代码如下。
 
     :::c++
+    char sep = '/';
+    char bigger_than_sep = '/'+1;
     auto it = db->NewIterator(ReadOptions());
     for (it->SeekToFirst(); it->Valid(); ){
             auto key = it->key().ToString();
@@ -27,11 +29,11 @@ acl: 11
                   it->Next();
                   continue;
             }
-            auto cmax = key.substr(0,p + sep.length()) + "\uffff"; //找到下一条需要的记录
-            cout << key.substr(0,sep.length()+p) <<endl;
+            auto cmax = key.substr(0,p) + bigger_than_sep;
             it->Seek(cmax);
+            cout << key.substr(0, p) << endl;
     }
 
-代码中sep就是指S3中的delimiter，通过在第一个CommonPrefix后天就`\uffff`找到下一条不是当前Prefix的记录。
+代码中sep就是指S3中的delimiter，通过在第一个CommonPrefix后将delimiter改为delimiter的unicode值加1，就能快速定位到下一个不同前缀的位置。
 
 经过简单对比，使用上述方法比完全遍历所有Key来获取CommonPrefix的速度快非常多。
