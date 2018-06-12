@@ -57,3 +57,4 @@ BTEG最大的特点是使用木屑作为作物的护根(mulch)，很多尝试过
     asparagus(芦笋) + parsley(香菜) + basil(罗勒) + strawberry(草莓) + marigold(金盏花) + chive(韭菜) + garlic(大蒜)
 
 这个[wiki](https://en.wikipedia.org/wiki/List_of_companion_plants)是一个适合混栽的作物列表。
+Google上搜到的比较靠前的文章[COMPANION PLANTING GUIDE](https://www.almanac.com/content/companion-planting-guide)评价挺好，找时间翻译下。
