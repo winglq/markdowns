@@ -1,4 +1,4 @@
-title: RGW
+title: Ceph RGW 代码分析
 author: qing
 date: 2018-04-08
 description: Ceph RWG
@@ -7,6 +7,29 @@ category:
 acl: 00
 
 # Ceph RGW 代码分析
+
+## rgw 编译
+
+根据ceph的develop guide可以用下面命令编译ceph。
+
+```
+./run-make-check.sh
+```
+
+这个脚本的左右时调用cmake生成Makefile，然后make程序和运行测试程序。cmake的输出在`./build`中。如果更改代码部分组件可以单独编译那个组件的代码，比如更改radosgw的代码的话可以用以下命令单独编译radosgw:
+
+    :::shell
+    cd build
+    make radosgw
+
+可以通过下面命令启动一个rgw实例：
+
+    :::shell
+    cd build
+    MON=1 MDS=1 CEPH_BIN=bin ../src/vstart.sh -d -n -x --rgw_num 1
+
+vstart.sh的作用是根据脚本的参数生成ceph.conf，然后启动各个服务，比如Monitor，Metadata，OSD，rgw等。如果需要更改ceph.conf的内容可以直接在脚本中修改，也可以等这个文件生成后修改配置再重启服务。
+
 
 ## daemon 启动
 
