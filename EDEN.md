@@ -53,7 +53,7 @@ BTEG最大的特点是使用木屑作为作物的护根(mulch)，很多尝试过
 通过Companion planting可以吸引有益昆虫，驱除害虫，或提供营养，阴影或支撑来协助其他植物的生长。
 以下是从Starry Hidler的视频中找到的两个组合。
 
-    cabbage + broccli(西兰花) + potato + celery(芹菜) + a little mint(薄荷)
+    cabbage + broccoli(西兰花) + potato + celery(芹菜) + a little mint(薄荷)
     asparagus(芦笋) + parsley(香菜) + basil(罗勒) + strawberry(草莓) + marigold(金盏花) + chive(韭菜) + garlic(大蒜)
 
 这个[wiki](https://en.wikipedia.org/wiki/List_of_companion_plants)是一个适合混栽的作物列表。
