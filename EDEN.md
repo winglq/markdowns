@@ -50,7 +50,7 @@ BTEG最大的特点是使用木屑作为作物的护根(mulch)，很多尝试过
 
 ### Companion planting（混栽）
 
-Companion planting指通过混合不同作物，尤其是在一些容易滋生害虫的作物周围种植气味作物，用于达到驱赶害虫的目的。
+通过Companion planting可以吸引有益昆虫，驱除害虫，或提供营养，阴影或支撑来协助其他植物的生长。
 以下是从Starry Hidler的视频中找到的两个组合。
 
     cabbage + broccli(西兰花) + potato + celery(芹菜) + a little mint(薄荷)
