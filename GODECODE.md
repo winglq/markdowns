@@ -39,8 +39,8 @@ category:
             if e != nil {
                   panic(e)
             }
-    	fmt.Println(string(r))
-    	BuildFromJson(reflect.TypeOf(u), string(r))
+        	fmt.Println(string(r))
+        	BuildFromJson(reflect.TypeOf(u), string(r))
     }
 
 
