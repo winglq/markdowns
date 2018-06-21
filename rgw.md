@@ -12,9 +12,7 @@ acl: 00
 
 根据ceph的develop guide可以用下面命令编译ceph。
 
-```
-./run-make-check.sh
-```
+    ./run-make-check.sh
 
 这个脚本的左右时调用cmake生成Makefile，然后make程序和运行测试程序。cmake的输出在`./build`中。如果更改代码部分组件可以单独编译那个组件的代码，比如更改radosgw的代码的话可以用以下命令单独编译radosgw:
 
@@ -35,7 +33,6 @@ vstart.sh的作用是根据脚本的参数生成ceph.conf，然后启动各个�
 
 通过dup2将STDERR重定向到STDOUT，分析命令行参数，获取配置文件列表，解析配置文件，根据配置文件内容设置`cct->_conf`数据结构, `cct`是`CephContext`的一个对象。选择API的Frontend。 接着调用`global/global_init.cc::global_init`，该函数会设置中断任务和完成用户切换，使用命令行中指定的用户运行程序。接着创建运行时目录，默认是`/var/run/ceph`。调用所有全局配置的观察者，通知他们配置发生了变化。这里的配置变化应该是由命令行参数的解析和配置文件的解析引起的。从代码注释看对全局配置的订阅应该是最近引入的，在`common/config.h::md_confg_t`中实现。设置运行目录，日志的所有者为当前程序的所有者和组。调用`rgw_tools_init`通过外部文件初始化MIME映射（文件后缀->MIME Type)。初始化DNS解析器。初始化Rados。启动性能计数。初始化REST，初始化rgw属性到http属性的映射，比如`content_language`->`Content-Language`。初始化http属性到rgw属性。TODO：为什么要加HTTP_?根据`rgw_extended_http_attrs`初始化HTTP扩展属性。初始化HTTP CODE到Text map(`http_status_names`)，比如`404`->`Not Found`。将zone group中的所有主机名称放入`hostnames_set`中。将zone group中的所有主机的S3名称放入`hostnames_s3website_set`中。初始化rgw用户(TODO: rgw chained cache和store的关系)。初始化rgw bucket(RGWMetadataManager)。根据设置决定要启用哪些API(比如，S3，Swift，swift_auth, admin)。将设置完的rest做为参数启动frontend framework。
 
-## RGW Rest
 
 ## RGW REST
 
@@ -203,7 +200,7 @@ s3的get op对像是`rgw_rest_s3.hpp::RGWGetObj_ObjStore_S3`，execute操作是`
 execute操作`RGWListBucket::execute`。
 获得所有index对象的调用过程`rgw_rados.cc::RGWRados::cls_bucket_list`->`rgw_rados.cc::RGWRados::open_bucket_index`->`rgw_rados.cc::RGWRados::get_bucket_index_objects`。获得所有index对象之后调用`CLSRGWIssueBucketList`函数对象。`CLSRGWIssueBucketList`是`CLSRGWConcurrentIO`的子类，`CLSRGWConcurrentIO`的作用是将多个操作并发发送到rados集群，并发数量是AIO的数量。从代码看一次list n个对象的话，会从每个shard上获取n个对象，然后在这些n*shard_number个对象中取出n个对象做为list的返回。Bucket类有一个shard_id初始化为-1，不知道是什么作用。
 
-# RGW Bucket
+## RGW Bucket
 RGW的一个Bucket对应到Rados上的三个pool(`data_pool`,`data_extra_pool`,`index_pool`)，这三个pool可以指向同一个pool。
 
 ## RGW Store
@@ -218,6 +215,44 @@ RGW的一个Bucket对应到Rados上的三个pool(`data_pool`,`data_extra_pool`,`
 `librados.hpp::librados::ObjectWriteOperation`将多个写操作操作聚合到这个对象中，这个类是`librados.hpp::librados::ObjectOperation`的子类。`librados::ObjectOperation`包含一个`ObjectOperationImpl`的对象，这个对象中有一个全局的`::ObjectOperation`对象，用于下发对OSD的操作。
 `Objecter.h::ObjectOperation::call`生成一个新的对osd的远程调用，把调用信息包括class的名字，method，和给method的参数。这个函数只是将远程调用信息放入list中，并不是立即调用。需要`op_submit`将操作提交给osd。
 
+## Ceph Class API
+
+`ClassHandler.h::class ClassHandler`用于注册Class object。注册的方式是一个name对应一个`struct ClassData`。Ceph启动的时候会load大部分的Class但是没有注册到ClassHendler上。注册Class method的方式类似，主要是做一个method名字到真正函数的映射。method信息存储在`struct ClassHandler::ClassMethod`中，在ceph里指一个handle。Class method的原型如下：
+
+    :::c++
+    typedef int (*cls_method_call_t)(cls_method_context_t ctx,
+                 char *indata, int datalen,
+                 char **outdata, int *outdatalen);
+
+Class API中还能注册cxx method(c++ API)，cxx method的原型如下：
+
+    :::c++
+    typedef int (*cls_method_cxx_call_t)(cls_method_context_t ctx,
+      class ceph::buffer::list *inbl, class ceph::buffer::list *outbl);
+
+cxx_filter的注册方式与cxx_method的方式类似。
+
+class_api.cc文件中定义了所有Class object可以用到的函数，比如读写OSD。class的api通过`OSDOp`定义具体的操作，在发送到OSD。可以通过`CEPH_OSD_OP_CALL`在osd上call之前register的method。
+
+### 加载Class Object
+
+`ClassHandler::open_class`打开一个Class，如果这个Class不存在就新添加一个ClassData，然后load对应的so。`classobj.h`中定义了宏`CLS_INIT`用来初始化Class Object，比如rgw中就有`CLS_INIT(rgw)`这样的函数用来注册rgw这个class和他的method。如果Class Object为内部Class，CLS_INIT宏定义为`__cls_init`。加载完Class Object的so后会调用`__clas_init`，以便初始化Class Object。所以一旦Class被Open所有的method应该已经可以被调用了，他们在`CLS_INIT`中被注册。可以通过`ClassData::get_method`取得对应的method handle即`ClassMethod`。`ClassMethod::exec`调用注册的函数。
+
+### RGW的Class API
+
+RGW的Class位于`cls_rgw.cc`中。Class注册的名字是"rgw"。在函数`cls_rgw.cc::CLS_INIT`中，注册完Class后会接着注册所有method。
+
+### ObjectOperation 处理流程
+
+`OSD::dequeue_op()`->`PrimaryLogPG::do_request`->`PrimaryLogPG::do_op`->`PrimaryLogPG::execute_ctx`->`PrimaryLogPG::prepare_transaction`->`PrimaryLogPG::do_osd_ops`
+
+`PrimaryLogPG::waiting_for_map`维护了所有这个PG还未完成的op，这些PG根据不同的服务分类，比如MON，OSD。而且每个instance有一个编号。在do_request中如果一个op操作发起对象的队列不空，就将这个op放入他的source对应的队列中。do_request结束。如果当前osd的epoch老于op的epoch，需要将op放入队列，等到那个op的epoch时才会开始操作。其他的op延时操作的内容在[MAP AND PG MESSAGE HANDLING](http://docs.ceph.com/docs/giant/dev/osd_internals/map_message_handling/)。在do_op中根据当前object context中锁状态和op操作来判断能否获取正确的锁类型(READ,WRITE,EXCLUSIVE)。
+写操作流程：`PrimaryLogPG::prepare_transaction`->`PrimaryLogPG::finish_ctx`根据OpContext中新旧ObjectState将相应的log_entry_t放入OpContext中名为log的vector中。`issue_op`通过`send_message_osd_cluster`将op分发到其他backend中去。之后在Primary PG中函数`parent->log_operation`将所有log_entry写入到一个pglog记录中去，然后再序列化到transaction中。接着将Transaction放入队列中。(queue_transactions)。`FileStore::queue_transactions`的作用是先将Transaction序列化到bufferlist中去，然后提交op。提交(submit)op的过程主要在这几个函数中发生`JournalingObjectStore::_op_journal_transactions->FileJournal::submit_entry`。`submit_entry`将write的内容放入一个write_item中，这个write_item再放入writep这个vector中。submit_entry的一个参数是一个Context, 这个参数被放到一个completion_item的vector中，在数据写入到磁盘后这个Context(C_JournaledAhead)会被放入FileJournal的Finisher中去。FileStore的线程`FileJournal::write_thread_entry`会将writep中的write_item合并在一个bufferlist中，然后写入到Journal中。Journal的打开方式会根据参数的配置而有所不同，一般会使用`flags |= O_DIRECT | O_DSYNC`flag打开。如果没有使用aio的话，ceph会使用系统调用writev将bufferlist写入Journal。否则就使用AIO的方式提交bufferlist。
+`Finisher`类用于异步调用Transaction完成后的Callback(Context的complete函数)。处理Finsish的线程是`Finisher::finisher_thread_entry`。FileStore的ondisk_finishers的数量由m_apply_finisher_num决定。如上所述C_JournaledAhead被放入FileJournal的Fininsher后他的complete函数会被调用，complete函数会调用`FileStore::_journaled_ahead`，这个函数会把处理的Transaction的所有Context放到ondisk_finishers。因为ondisk_finishers是个Finisher的vector所以放的时候是根据`osr->id`做的roundrobin。
+## Object operation transaction
+
+`ObjectStore.h::Transaction`定义了所有操作(op)，比如：touch，write等。Transaction的对象一般为Object或者coll_t(pg)。Transaction主要有两块内存，一块用于记录所有的Op，而另一块用于记录data。对对象的读写需要在Transaction对象上调用相应的操作。Transaction对象会被序列化到Journal中。
+
 
 ## ToDO
 
@@ -225,6 +260,6 @@ RGW的一个Bucket对应到Rados上的三个pool(`data_pool`,`data_extra_pool`,`
 * GC
 * zone/zone group
 * What Is Bucket Index?
+* Ceph Snapshot
 
 It’s a different kind of metadata, and kept separately. The bucket index holds a key-value map in rados objects. By default it is a single rados object per bucket, but it is possible since Hammer to shard that map over multiple rados objects. The map itself is kept in omap, associated with each rados object. The key of each omap is the name of the objects, and the value holds some basic metadata of that object – metadata that shows up when listing the bucket. Also, each omap holds a header, and we keep some bucket accounting metadata in that header (number of objects, total size, etc.).
-* Object operation transaction
