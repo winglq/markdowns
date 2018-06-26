@@ -244,15 +244,40 @@ RGW的Class位于`cls_rgw.cc`中。Class注册的名字是"rgw"。在函数`cls_
 
 ### ObjectOperation 处理流程
 
-`OSD::dequeue_op()`->`PrimaryLogPG::do_request`->`PrimaryLogPG::do_op`->`PrimaryLogPG::execute_ctx`->`PrimaryLogPG::prepare_transaction`->`PrimaryLogPG::do_osd_ops`
+`OSD::ShardedOpWQ::_enqueue`->(以下为WorkThreadSharded线程工作)`WorkThreadSharded::entry`->`ShardedThreadPool::shardedthreadpool_worker`->`OSD::ShardedOpWQ::_process`->`PGQueueable::run`->`OSD::dequeue_op()`->`PrimaryLogPG::do_request`->`PrimaryLogPG::do_op`->`PrimaryLogPG::execute_ctx`->`PrimaryLogPG::prepare_transaction`->`PrimaryLogPG::do_osd_ops`(处理osd op,比如CEPH_OSD_OP_CMPEXT，CEPH_OSD_OP_SYNC_READ)->`PrimaryLogPG::prepare_transaction`->`PrimaryLogPG::finish_ctx`->`FileStore::queue_transactions`->`JournalingObjectStore::_op_journal_transactions->FileJournal::submit_entry`->(以下为FileJournal::write_thread_entry线程开始)->`::writev/aio_submit`->开始Finish线程
 
-`PrimaryLogPG::waiting_for_map`维护了所有这个PG还未完成的op，这些PG根据不同的服务分类，比如MON，OSD。而且每个instance有一个编号。在do_request中如果一个op操作发起对象的队列不空，就将这个op放入他的source对应的队列中。do_request结束。如果当前osd的epoch老于op的epoch，需要将op放入队列，等到那个op的epoch时才会开始操作。其他的op延时操作的内容在[MAP AND PG MESSAGE HANDLING](http://docs.ceph.com/docs/giant/dev/osd_internals/map_message_handling/)。在do_op中根据当前object context中锁状态和op操作来判断能否获取正确的锁类型(READ,WRITE,EXCLUSIVE)。
-写操作流程：`PrimaryLogPG::prepare_transaction`->`PrimaryLogPG::finish_ctx`根据OpContext中新旧ObjectState将相应的log_entry_t放入OpContext中名为log的vector中。`issue_op`通过`send_message_osd_cluster`将op分发到其他backend中去。之后在Primary PG中函数`parent->log_operation`将所有log_entry写入到一个pglog记录中去，然后再序列化到transaction中。接着将Transaction放入队列中。(queue_transactions)。`FileStore::queue_transactions`的作用是先将Transaction序列化到bufferlist中去，然后提交op。提交(submit)op的过程主要在这几个函数中发生`JournalingObjectStore::_op_journal_transactions->FileJournal::submit_entry`。`submit_entry`将write的内容放入一个write_item中，这个write_item再放入writep这个vector中。submit_entry的一个参数是一个Context, 这个参数被放到一个completion_item的vector中，在数据写入到磁盘后这个Context(C_JournaledAhead)会被放入FileJournal的Finisher中去。FileStore的线程`FileJournal::write_thread_entry`会将writep中的write_item合并在一个bufferlist中，然后写入到Journal中。Journal的打开方式会根据参数的配置而有所不同，一般会使用`flags |= O_DIRECT | O_DSYNC`flag打开。如果没有使用aio的话，ceph会使用系统调用writev将bufferlist写入Journal。否则就使用AIO的方式提交bufferlist。
+op进入OSD时先根据spg_t hash到对应的ShardData的pqueue队列中去。然后由对应的WorkThreadSharded处理。(TODO:op优先级)，默认shard_num为5thread数量为2。
+
+`PrimaryLogPG::waiting_for_map`维护了所有这个PG还未完成的op。这些OP根据不同的服务分类，比如MON，OSD。每个服务instance有一个编号。这个map的key就是`entity_name_t`，`entity_name_t`的两个主要实现就是刚才提到的服务类型和instance编号。在do_request中如果一个op操作发起对象的队列不空，就将这个op放入他的source对应的队列中。do_request结束。如果当前osd的epoch老于op的epoch，需要将op放入队列，等到那个op的epoch时才会开始操作。其他的op延时操作的内容在[MAP AND PG MESSAGE HANDLING](http://docs.ceph.com/docs/giant/dev/osd_internals/map_message_handling/)。在do_op中根据当前object context中锁状态和op操作来判断能否获取正确的锁类型(READ,WRITE,EXCLUSIVE)。
+写操作流程：`PrimaryLogPG::prepare_transaction`->`PrimaryLogPG::finish_ctx`根据OpContext中新旧ObjectState将相应的log_entry_t放入OpContext中名为log的vector中。`issue_op`通过`send_message_osd_cluster`将op分发到其他backend中去。之后在Primary PG中函数`parent->log_operation`将所有log_entry写入到一个pglog记录中去，然后再序列化到transaction中。接着将Transaction放入队列中。(queue_transactions)。`FileStore::queue_transactions`的作用是先将Transaction序列化到bufferlist中去，然后提交op。提交(submit)op的过程主要在这几个函数中发生`JournalingObjectStore::_op_journal_transactions->FileJournal::submit_entry`。`submit_entry`将write的内容放入一个write_item中，这个write_item再放入writep这个vector中。submit_entry的一个参数是一个Context, 这个参数被放到一个completion_item的vector中，在数据写入到磁盘后这个Context(C_JournaledAhead)会被放入FileJournal的Finisher中去。**至此WorkThreadSharded的任务结束**。FileStore的线程`FileJournal::write_thread_entry`会将writep中的write_item合并在一个bufferlist中，然后写入到Journal中。Journal的打开方式会根据参数的配置而有所不同，一般会使用`flags |= O_DIRECT | O_DSYNC`flag打开。如果没有使用aio的话，ceph会使用系统调用writev将bufferlist写入Journal。否则就使用AIO的方式提交bufferlist。**write_thread_entry线程任务结束**。
 `Finisher`类用于异步调用Transaction完成后的Callback(Context的complete函数)。处理Finsish的线程是`Finisher::finisher_thread_entry`。FileStore的ondisk_finishers的数量由m_apply_finisher_num决定。如上所述C_JournaledAhead被放入FileJournal的Fininsher后他的complete函数会被调用，complete函数会调用`FileStore::_journaled_ahead`，这个函数会把处理的Transaction的所有Context放到ondisk_finishers。因为ondisk_finishers是个Finisher的vector所以放的时候是根据`osr->id`做的roundrobin。
+
+#### Snap create
+
+OSD比较当前对象的SnapSet和SnapContext中的snapshot的sequence id来确定是否需要将head clone出去然后将内容写入Head中。如果SnapContext中的sequence id小于PG的sequence id，说明客户端的sequence id不是最新，需要重新获取。
+
+### Snap trim 处理流程
+
+`OSD::ShardedOpWQ::_enqueue`->(以下为WorkThreadSharded线程工作)`WorkThreadSharded::entry`->`ShardedThreadPool::shardedthreadpool_worker`->`OSD::ShardedOpWQ::_process`->`PrimaryLogPG::snap_trimmer`
+
+Snap Trim state machine有如下几个state:
+
+* Trimming
+
+  * WaitReservation  Triming的初始状态。等待的事件是SnapTrimReserved。
+  * AwaitAsyncWork  pg state变成trimming。AwaitAsyncWork在收到DoSnapWork event后调用`PrimaryLogPG::AwaitAsyncWork::react`->`PrimaryLogPG::trim_object`将需要trim的snap放入一个Transaction中。
+
+在`PrimaryLogPG::AwaitAsyncWork::react`函数get_next_objects_to_trim根据snapid获得所有clone的hobject，因为存在pool snapshot所以做一次snapshot可能会对多个object做快照，如果这些对象在快照后有写操作，就会产生那个snapid的clone。在删除了这个snapid后如果clone_snaps为空，那么意味这这个clone可以被删除，如果不为空就只更新SnapMapper中的数据。SnapMapper记录了snapid->obj(clone)和obj(clone)->snapid的mapping关系。上述的写操作都是异步执行的，会进入一个Transaction，然后序列化到Jounral中去。
+
+![](https://nwat.xyz/images/blog/ceph-osd-statechart-1ea80cf.svg)
+
 ## Object operation transaction
 
 `ObjectStore.h::Transaction`定义了所有操作(op)，比如：touch，write等。Transaction的对象一般为Object或者coll_t(pg)。Transaction主要有两块内存，一块用于记录所有的Op，而另一块用于记录data。对对象的读写需要在Transaction对象上调用相应的操作。Transaction对象会被序列化到Journal中。
 
+## OSD的启动
+
+OSD Service在init函数中会启动4个Thread Pool，分别是：peering_tp，osd_op_tp，disk_tp，command_tp。其中只有osd_op_tp是ShardedThreadPool，其他都是ThreadPool。ShardedThreadPool默认的shard是5，thread number是2。
 
 ## ToDO
 
