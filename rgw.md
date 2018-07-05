@@ -256,7 +256,7 @@ op进入OSD时先根据spg_t hash到对应的ShardData的pqueue队列中去。�
 
 OSD比较当前对象的SnapSet和SnapContext中的snapshot的sequence id来确定是否需要将head clone出去然后将内容写入Head中。如果SnapContext中的sequence id小于PG的sequence id，说明客户端的sequence id不是最新，需要重新获取。
 
-### Snap trim 处理流程
+## Snap trim 处理流程
 
 `OSD::ShardedOpWQ::_enqueue`->(以下为WorkThreadSharded线程工作)`WorkThreadSharded::entry`->`ShardedThreadPool::shardedthreadpool_worker`->`OSD::ShardedOpWQ::_process`->`PrimaryLogPG::snap_trimmer`
 
@@ -270,6 +270,20 @@ Snap Trim state machine有如下几个state:
 在`PrimaryLogPG::AwaitAsyncWork::react`函数get_next_objects_to_trim根据snapid获得所有clone的hobject，因为存在pool snapshot所以做一次snapshot可能会对多个object做快照，如果这些对象在快照后有写操作，就会产生那个snapid的clone。在删除了这个snapid后如果clone_snaps为空，那么意味这这个clone可以被删除，如果不为空就只更新SnapMapper中的数据。SnapMapper记录了snapid->obj(clone)和obj(clone)->snapid的mapping关系。上述的写操作都是异步执行的，会进入一个Transaction，然后序列化到Jounral中去。
 
 ![](https://nwat.xyz/images/blog/ceph-osd-statechart-1ea80cf.svg)
+
+## Recovery
+
+`PrimaryLogPG::start_recovery_ops`获得所有missing的object，missing object的列表应该是在peer的过程中创建。如果没有missing的对象的话更新last_complete到last_update。
+恢复replication过程：首先查找所有缺少这个对象的副本。然后对所有查找出的副本做下面的操作如果当前object是一个clone就先恢复HEAD对象，如果HEAD对象不存在的话就先恢复SNAPDIR。等这个Clone的以上依赖都恢复后再恢复这个对象。所有的PushOp存入`RPGHandle.pushes`中。
+
+### Peer
+
+Peer的过程主要由下面几个状态组成：
+
+* Peering
+* GetInfo 这是Peering的下一个状态
+* GetLog 如果当前没有peer节点信息的话，进入GetLog状态
+* Down 如果pg的osd有一个为down就进入Down状态
 
 ## Object operation transaction
 
