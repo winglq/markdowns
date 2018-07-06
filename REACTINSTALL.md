@@ -7,7 +7,7 @@ category:
 
 # ReactJS安装问题
 
-**不能再tmux中运行下面命令**
+**不能在tmux中运行下面命令**
 
     npx create-react-app my-app
 
