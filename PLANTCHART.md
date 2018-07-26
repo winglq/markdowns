@@ -107,3 +107,4 @@ Watermelons|15-20'|60-100'|3 g|1-3 lb|1/2"|70-85&deg;F|3-10|3-4'|3-4'|5-6'|6/1-6
 ## 其他的链接
 
 [各种蔬菜种植时间表](http://blog.sina.com.cn/s/blog_626a321f0102enaf.html)
+[Vegetable Harvest Guide](https://hortnews.extension.iastate.edu/2004/7-23-2004/vegguide.html)
