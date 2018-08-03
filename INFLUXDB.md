@@ -116,7 +116,7 @@ WritePoint 服务订阅订阅服务的points channel。WritePoint服务有新的
 1. point的映射过程为先通过metadata client获得write data request的retention policy。然后根据所有point的时间和retention policy创建shard group。shard group包含所有的机器，points会根据下面的步骤hash到机器上。
 2. 所有的point会放到shard id到points的mapping中去, mapping 过程如下
 
-  写入的机器根据point的hash值然后用shard group里机器数量求余获得。
+  写入的机器根据point的hash值然后用shard group里Shard数量求余获得。
 
     sgi.Shards[hash%uint64(len(sgi.Shards))] // sgi: Shard group info.
 
@@ -143,18 +143,18 @@ WritePoint 服务订阅订阅服务的points channel。WritePoint服务有新的
 
 1. 根据Retention Policy名字查到对应的Retention Policy的数据结构，如下所示：
 
-    :::go
-    type RetentionPolicyInfo struct {
-    	Name               string
-    	ReplicaN           int
-    	Duration           time.Duration
-    	ShardGroupDuration time.Duration
-    	ShardGroups        []ShardGroupInfo
-    	Subscriptions      []SubscriptionInfo
-    }
+        :::go
+        type RetentionPolicyInfo struct {
+        	Name               string
+        	ReplicaN           int
+        	Duration           time.Duration
+        	ShardGroupDuration time.Duration
+        	ShardGroups        []ShardGroupInfo
+        	Subscriptions      []SubscriptionInfo
+        }
 
 2. 在得到的RetentionPolicyInfo中遍历所有ShardGroups，查找Point的插入时间在shard group的开始时间和结束时间之间的那个shard group。
-3. 如果存在这样的shard group说明，不虚要创建新的shard group，否则进入第四部
+3. 如果存在这样的shard group，不需要创建新的shard group，否则进入第四部
 4. 调用raft发送创建新的shard group的命令
 
    * 获得当前副本数量 replicaN
@@ -162,6 +162,18 @@ WritePoint 服务订阅订阅服务的points channel。WritePoint服务有新的
    * 新建新的shard group，开始和结束时间根据Retention Policy计算获得
    * 创建shardN个新的Shard
    * 随机挑选一个DataNode开始给每个Shard分配replicaN个owner。
+   * Shard group的duration根据对应的policy计算，代码如下。rp duration在半年以上的sg的duration为一周，大于两天的为一天，两天以下的为一小时。
+
+        :::go
+        func shardGroupDuration(d time.Duration) time.Duration {
+                if d >= 180*24*time.Hour || d == 0 { // 6 months or 0
+                        return 7 * 24 * time.Hour
+                } else if d >= 2*24*time.Hour { // 2 days
+                        return 1 * 24 * time.Hour
+                }
+                return 1 * time.Hour
+        }
+
 
 5. 因为client调用执行raft的命令会等待到命令执行成功并且CacheData被更新，所以命令执行完后重新查找shard group info并返回。
 
@@ -174,7 +186,91 @@ WritePoint 服务订阅订阅服务的points channel。WritePoint服务有新的
     * 将 entry 添加到cache中，如果新加points不有序，或者新point的时间早于cache中时间,设置需要排序标志位。
 2. 将Cache中的数据做一次Snapshot，然后把Snapshot放入Flush队列，Flush队列中的数据会被写入到tsm文件中。做Snapshot的时候会对Cache和entry(包含一个Value队列)加锁，但是不会对Value加锁，应该是没有更改Value的可能性。tsm的命名方式是generation+sequence。 TSM的layout，为什么利于读，如何找到指定数据？
 
+### TSM layout
+
+TSM文件的组成是：1. magic number(4bytes), 2. version(1bytes) 3.blocks 3.1 CRC(4bytes) 3.2 Values, 4.Index, 5.Index start position(END-8bytes)
+
+### 读流程(Select)
+
+httpd handle初始化QueryExecutor为cluster的QueryExecutor。query的url和sql语句解析完毕后就会调用QueryExecutor，根据select的中请求的时间范围，确定哪些shard会被检索，接着把这些shard按nodeid分类，如果一个shard有多个owner，则随机取一个owner。根据node,shard和expr（where的条件）创建iteration。如果接收select的服务器和shard所在的服务器不在同一个节点，则建出来的Iteration会dial到对应的机器。根据Series和Field name会在shard上创建一个cursor，然后根据条件轮询这个Field的值。
+
+#### query_executor跟store的交互
+query_executor.go文件中：
+
+e.TSDBStore.ShardIteratorCreator(shardID)
+ics = append(ics, newRemoteIteratorCreator(dialer, nodeID, shardIDs))
+
+FloatCursor接口
+
+    :::go
+    type floatCursor interface {
+            cursor
+            nextFloat() (t int64, v float64)
+    }
+
+Cursor和Iterator的差别是，Cursor只取一列数据，Iteration会取query相关的所有列。
+
+Iterator接口
+
+    :::go
+    type Iterator interface {
+        Close() error
+    }
+
+
+FloatIterator接口
+
+    :::go
+    type FloatIterator interface {
+            Iterator
+            Next() *FloatPoint
+    }
+
+engineFloatCursor是包括cache中Series+Field的值，和Series+Field在store中的值(只提供对应的Cursor)
+
+store需要实现如下接口，以便influxql创建迭代器。
+
+    :::go
+    type IteratorCreator interface {
+    	// Creates a simple iterator for use in an InfluxQL query.
+    	CreateIterator(opt IteratorOptions) (Iterator, error)
+    
+    	// Returns the unique fields and dimensions across a list of sources.
+    	FieldDimensions(sources Sources) (fields, dimensions map[string]struct{}, err error)
+    
+    	// Returns the series keys that will be returned by this iterator.
+    	SeriesKeys(opt IteratorOptions) (SeriesList, error)
+    }
+
+下面是influxql和store交互的接口。
+
+    :::go
+    type TSDBStore interface {
+    	CreateShard(database, policy string, shardID uint64) error
+    	WriteToShard(shardID uint64, points []models.Point) error
+    
+    	DeleteDatabase(name string) error
+    	DeleteMeasurement(database, name string) error
+    	DeleteRetentionPolicy(database, name string) error
+    	DeleteSeries(database string, sources []influxql.Source, condition influxql.Expr) error
+    	ExecuteShowFieldKeysStatement(stmt *influxql.ShowFieldKeysStatement, database string) (models.Rows, error)
+    	ExecuteShowTagValuesStatement(stmt *influxql.ShowTagValuesStatement, database string) (models.Rows, error)
+    	ExpandSources(sources influxql.Sources) (influxql.Sources, error)
+    	ShardIteratorCreator(id uint64) influxql.IteratorCreator
+    }
+
+## TCP server实现
+
+在`tcp/mux.go`中实现了一个tcp server，accept connection后启动一个新的goroutine(mux.handleConn)处理connection。handleConn首先读出conn的第一个字节，判断这个请求的类型，每个请求类型都有一个listener与之对应。根据请求类型把conn放入listener的channel中。handleConn这个goroutine结束。listener实现了type Listener interface接口（Accept/Close/Addr)。其中Accept的作用就是讲刚才放入channel中的conn返回给调用者。
+每个需要处理TCP连接的Service通过`Listen(header byte)`得到一个listener，然后在自己的serve函数中调用listener的Accept函数获得conn对象。Service在获得conn后，新启动一个goroutine，处理这个conn。每个service会有自己的Request Type，所以在这个处理conn的goroutine中会先解析Request Type，然后再parse request进行处理。解析Request Type和parse request是每个Service自己定义的。比如，在Cluster service中每个Request Type对应一个Byte，而Request的内容是protobuf编码的字节流。而在Snapshot service中，Request使用JSON编码，而非protobuf。
+
+## v1.6.0 Influxql
+
+Influxql的语法使用AST(abstract syntax tree)组织。
+
 ## 数据Index
+
+主要是在DatabaseIndex中。
 
  ShardGroup
    Shards
