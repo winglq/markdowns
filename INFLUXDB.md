@@ -116,7 +116,7 @@ WritePoint 服务订阅订阅服务的points channel。WritePoint服务有新的
 1. point的映射过程为先通过metadata client获得write data request的retention policy。然后根据所有point的时间和retention policy创建shard group。shard group包含所有的机器，points会根据下面的步骤hash到机器上。
 2. 所有的point会放到shard id到points的mapping中去, mapping 过程如下
 
-  写入的机器根据point的hash值然后用shard group里机器数量求余获得。
+  写入的机器根据point的hash值然后用shard group里Shard数量求余获得。
 
     sgi.Shards[hash%uint64(len(sgi.Shards))] // sgi: Shard group info.
 
@@ -143,18 +143,18 @@ WritePoint 服务订阅订阅服务的points channel。WritePoint服务有新的
 
 1. 根据Retention Policy名字查到对应的Retention Policy的数据结构，如下所示：
 
-    :::go
-    type RetentionPolicyInfo struct {
-    	Name               string
-    	ReplicaN           int
-    	Duration           time.Duration
-    	ShardGroupDuration time.Duration
-    	ShardGroups        []ShardGroupInfo
-    	Subscriptions      []SubscriptionInfo
-    }
+        :::go
+        type RetentionPolicyInfo struct {
+        	Name               string
+        	ReplicaN           int
+        	Duration           time.Duration
+        	ShardGroupDuration time.Duration
+        	ShardGroups        []ShardGroupInfo
+        	Subscriptions      []SubscriptionInfo
+        }
 
 2. 在得到的RetentionPolicyInfo中遍历所有ShardGroups，查找Point的插入时间在shard group的开始时间和结束时间之间的那个shard group。
-3. 如果存在这样的shard group说明，不虚要创建新的shard group，否则进入第四部
+3. 如果存在这样的shard group，不需要创建新的shard group，否则进入第四部
 4. 调用raft发送创建新的shard group的命令
 
    * 获得当前副本数量 replicaN
@@ -162,6 +162,18 @@ WritePoint 服务订阅订阅服务的points channel。WritePoint服务有新的
    * 新建新的shard group，开始和结束时间根据Retention Policy计算获得
    * 创建shardN个新的Shard
    * 随机挑选一个DataNode开始给每个Shard分配replicaN个owner。
+   * Shard group的duration根据对应的policy计算，代码如下。rp duration在半年以上的sg的duration为一周，大于两天的为一天，两天以下的为一小时。
+
+        :::go
+        func shardGroupDuration(d time.Duration) time.Duration {
+                if d >= 180*24*time.Hour || d == 0 { // 6 months or 0
+                        return 7 * 24 * time.Hour
+                } else if d >= 2*24*time.Hour { // 2 days
+                        return 1 * 24 * time.Hour
+                }
+                return 1 * time.Hour
+        }
+
 
 5. 因为client调用执行raft的命令会等待到命令执行成功并且CacheData被更新，所以命令执行完后重新查找shard group info并返回。
 
@@ -174,7 +186,17 @@ WritePoint 服务订阅订阅服务的points channel。WritePoint服务有新的
     * 将 entry 添加到cache中，如果新加points不有序，或者新point的时间早于cache中时间,设置需要排序标志位。
 2. 将Cache中的数据做一次Snapshot，然后把Snapshot放入Flush队列，Flush队列中的数据会被写入到tsm文件中。做Snapshot的时候会对Cache和entry(包含一个Value队列)加锁，但是不会对Value加锁，应该是没有更改Value的可能性。tsm的命名方式是generation+sequence。 TSM的layout，为什么利于读，如何找到指定数据？
 
+### TSM layout
+
+TSM文件的组成是：1. magic number(4bytes), 2. version(1bytes) 3.blocks 3.1 CRC(4bytes) 3.2 Values, 4.Index, 5.Index start position(END-8bytes)
+
+### 读流程(Select)
+
+httpd handle初始化QueryExecutor为cluster的QueryExecutor。query的url和sql语句解析完毕后就会调用QueryExecutor，根据select的中请求的时间范围，确定哪些shard会被检索，接着把这些shard按nodeid分类，如果一个shard有多个owner，则随机取一个owner。根据node,shard和expr（where的条件）创建iteration。如果接收select的服务器和shard所在的服务器不在同一个节点，则建出来的Iteration会dial到对应的机器。根据Series和Field name会在shard上创建一个cursor，然后根据条件轮询这个Field的值。
+
 ## 数据Index
+
+主要是在DatabaseIndex中。
 
  ShardGroup
    Shards
