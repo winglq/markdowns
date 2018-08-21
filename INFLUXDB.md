@@ -1,16 +1,16 @@
-title: Influxdb代码分析
+title: Influxdb 代码分析
 author: qing
-date: 2018-07-26
-description: Influxdb代码分析
+date: 2018-07-2 6
+description: In fluxdb代码分析
 tags:
 category:
 acl: 11
 
-# Influxdb代码分析
+# Influxdb代码  分析
 
-## 版本
-influxdb 0.11.1
-
+## 版本         
+influxdb 0.11.1 
+                
 ## 目录结构
 TSDBStore根目录: /var/lib/influxdb/data
 每个database为TSDBStore根目录下的一个字母，这里称为DB目录
@@ -194,6 +194,14 @@ TSM文件的组成是：1. magic number(4bytes), 2. version(1bytes) 3.blocks 3.1
 
 httpd handle初始化QueryExecutor为cluster的QueryExecutor。query的url和sql语句解析完毕后就会调用QueryExecutor，根据select的中请求的时间范围，确定哪些shard会被检索，接着把这些shard按nodeid分类，如果一个shard有多个owner，则随机取一个owner。根据node,shard和expr（where的条件）创建iteration。如果接收select的服务器和shard所在的服务器不在同一个节点，则建出来的Iteration会dial到对应的机器。根据Series和Field name会在shard上创建一个cursor，然后根据条件轮询这个Field的值。
 
+#### Merge Iteration
+
+在读取数据是需要平凡的对Iteration进行合并，比如一个measurement有多个Field，那么每个Field都会有一个Iteration，而所有的这些Field最终会合并成一个Iteration。合并后的Iteration只有一个数据类型，这个类型是适用于所有被合并的Iteration中占空间最小的那个。比如有两个Field的类型分别是float64， int32，那么合并后的Iteration的类型为float64。
+
+#### 远程 Iteration
+
+远程Iteration用于读取cluster中其他节点的数据。远程Iteration实际是维持一个TCP连接到对应的节点，远程节点构建一个本地的Iteration，然后将数据写入conn中。
+
 #### query_executor跟store的交互
 query_executor.go文件中：
 
@@ -272,16 +280,16 @@ Influxql的语法使用AST(abstract syntax tree)组织。
 
 主要是在DatabaseIndex中。
 
- ShardGroup
-   Shards
-     Shard ->
-       Measurement Name ->
-         Field objects
-       DatabaseIndex ->
-         Measurement Name ->
-           Measurement object
-             Tag.Key + Tag.Value -> Series ID
-             Series ID ->
-               Series Object
-         Series Key ->
-           Series object
+    ShardGroup
+      Shards
+        Shard ->
+          Measurement Name ->
+            Field objects
+          DatabaseIndex ->
+            Measurement Name ->
+              Measurement object
+                Tag.Key + Tag.Value -> Series ID
+                Series ID ->
+                  Series Object
+            Series Key ->
+              Series object
