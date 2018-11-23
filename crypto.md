@@ -1,11 +1,8 @@
-title: 关于编码和签名
-author: qing
+---
+title: 编码和签名整理
 date: 2018-02-28
-description: Things about encrypting and signing ...
-tags:
-category:
+---
 
-# Crypto
 
 ---
 
@@ -14,33 +11,37 @@ category:
 
 A sample code which demotrates how to ecncrypt/decrypt using private key only.(symmetric)
 
-    from Crypto.Cipher import AES
-    import base64
-    
-    msg_text = 'test some plain text here'.rjust(32)
-    secret_key = '1234567890123456' # private key. create new & store somewhere safe. 16 Bytes 128 bits => AES-128
-    
-    cipher = AES.new(secret_key,AES.MODE_ECB) # never use ECB in strong systems obviously
-    encoded = base64.b64encode(cipher.encrypt(msg_text))
-    # ...
-    # another size who received the encrypted data
-    decoded = cipher.decrypt(base64.b64decode(encoded))
-    print decoded.strip()
-    
+```python
+from Crypto.Cipher import AES
+import base64
+
+msg_text = 'test some plain text here'.rjust(32)
+secret_key = '1234567890123456' # private key. create new & store somewhere safe. 16 Bytes 128 bits => AES-128
+
+cipher = AES.new(secret_key,AES.MODE_ECB) # never use ECB in strong systems obviously
+encoded = base64.b64encode(cipher.encrypt(msg_text))
+# ...
+# another size who received the encrypted data
+decoded = cipher.decrypt(base64.b64decode(encoded))
+print decoded.strip()
+```
+
 The next sample code demotrates an asymmetrical cryptography. To run the following code you need to install rsa package.
 
-    # 1. Bob generates a keypair, and gives the public key to Alice. This is done such that Alice knows for sure that the key is really Bob’s (for example by handing over a USB stick that contains the key).
-    >>> import rsa
-    >>> (bob_pub, bob_priv) = rsa.newkeys(512)
-    # 2. Alice writes a message, and encodes it in UTF-8. The RSA module only operates on bytes, and not on strings, so this step is necessary.
-    >>> message = 'hello Bob!'.encode('utf8')
-    # 3. Alice encrypts the message using Bob’s public key, and sends the encrypted message.
-    >>> import rsa
-    >>> crypto = rsa.encrypt(message, bob_pub)
-    # 4. Bob receives the message, and decrypts it with his private key.
-    >>> message = rsa.decrypt(crypto, bob_priv)
-    >>> print(message.decode('utf8'))
-    hello Bob!
+```bash
+# 1. Bob generates a keypair, and gives the public key to Alice. This is done such that Alice knows for sure that the key is really Bob’s (for example by handing over a USB stick that contains the key).
+>>> import rsa
+>>> (bob_pub, bob_priv) = rsa.newkeys(512)
+# 2. Alice writes a message, and encodes it in UTF-8. The RSA module only operates on bytes, and not on strings, so this step is necessary.
+>>> message = 'hello Bob!'.encode('utf8')
+# 3. Alice encrypts the message using Bob’s public key, and sends the encrypted message.
+>>> import rsa
+>>> crypto = rsa.encrypt(message, bob_pub)
+# 4. Bob receives the message, and decrypts it with his private key.
+>>> message = rsa.decrypt(crypto, bob_priv)
+>>> print(message.decode('utf8'))
+hello Bob!
+```
     
 ### AES
 AES `(Advanced Encryption Standard)` is a symmetric block cipher standardized by NIST_ . It has a fixed data block size of 16 bytes. Its keys can be 128, 192, or 256 bits long.
@@ -63,27 +64,31 @@ Public key cryptography, or asymmetrical cryptography, is any cryptographic syst
 **When signing, you use your private key to write message's signature, and they use your public key to check if it's really yours.**
 A signing and verifying example.
 
-    # You can create a detached signature for a message using the rsa.sign() function:
-    >>> (pubkey, privkey) = rsa.newkeys(512)
-    >>> message = 'Go left at the blue tree'
-    >>> signature = rsa.sign(message, privkey, 'SHA-1') # use privkey to crypt message and use SHA-1 to get the digest data.
-    # This hashes the message using SHA-1. Other hash methods are also possible, check the rsa.sign() function documentation for details. The hash is then signed with the private key.
-    # In order to verify the signature, use the rsa.verify() function. This function returns True if the verification is successful
-    >>> message = 'Go left at the blue tree'
-    >>> rsa.verify(message, signature, pubkey) # use pubkey to crypt message and calculate SHA-1 digest and compare the result to signature.
-    True
-    
+```bash
+# You can create a detached signature for a message using the rsa.sign() function:
+>>> (pubkey, privkey) = rsa.newkeys(512)
+>>> message = 'Go left at the blue tree'
+>>> signature = rsa.sign(message, privkey, 'SHA-1') # use privkey to crypt message and use SHA-1 to get the digest data.
+# This hashes the message using SHA-1. Other hash methods are also possible, check the rsa.sign() function documentation for details. The hash is then signed with the private key.
+# In order to verify the signature, use the rsa.verify() function. This function returns True if the verification is successful
+>>> message = 'Go left at the blue tree'
+>>> rsa.verify(message, signature, pubkey) # use pubkey to crypt message and calculate SHA-1 digest and compare the result to signature.
+True
+```
+
 ### SHA-1
 In cryptography, SHA-1 (Secure Hash Algorithm 1) is a cryptographic hash function which takes an input and produces a 160-bit (20-byte) hash value known as a message digest - typically rendered as a hexadecimal number, 40 digits long. It was designed by the United States National Security Agency, and is a U.S. Federal Information Processing Standard.
 SHA-1 example.
 
-    import hashlib
-    m = hashlib.sha1()
-    m.update("Nobody inspects")
-    m.update(" the spammish repetition")
-    print m.digest()
-    print m.digest_size
-    
+```python
+import hashlib
+m = hashlib.sha1()
+m.update("Nobody inspects")
+m.update(" the spammish repetition")
+print m.digest()
+print m.digest_size
+```
+
 ### Sign CSR procedure
 
 * Application owner generates key pair(public/private key)
@@ -98,7 +103,7 @@ SHA-1 example.
 * Client uses the public key in the certificate to encrypt information.
 * Server decrypt infomation by private key.
 * new key change
-    
+
 ### X.509
 In cryptography, X.509 is a standard that defines the format of public key certificates. X.509 certificates are used in many Internet protocols, including TLS/SSL, which is the basis for HTTPS, the secure protocol for browsing the web. They are also used in offline applications, like electronic signatures.
 

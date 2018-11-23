@@ -1,12 +1,8 @@
+---
 title: 种子种植图表
-author: qing
 date: 2018-06-20
-description: 种子种植图表
-tags:
-category:
-acl: 00
+---
 
-# 种子种植图表
 
 ## 上海各品种蔬菜种植及采收时间
 

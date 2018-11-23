@@ -1,12 +1,7 @@
+---
 title: K8S代码分析
-author: qing
 date: 2018-03-29
-description: K8S
-tags:
-category:
-acl: 00
-
-# K8S代码分析
+---
 
 ## K8S的<a name="version">版本</a>
 
@@ -37,29 +32,31 @@ Scheme defines methods for serializing and deserializing API objects, a type reg
 Specifically, conversion provides a way for you to define multiple versions of the same object. You may write functions which implement conversion logic, but for the fields which did not change, copying is automated. This makes it easy to modify the structures you use in memory without affecting the format you store on disk or respond to in your external API calls.
 从上面这段注释可以了解到`package conversion`可以对同一个对象定义多个版本，并在这些版本之间做转换。同一个数据结构在两个不同版本之间转换时可能出现缺少或增加新的字段，或者字段的名称类型发生了变化，所以`conversion`包主要就是用来处理这些不一致情况下的结构转换。`FieldMatchingFlags`定义了是从目标端还是源端开始扫描所有字段，如果对端字段不存在时做何种处理。
 
-    :::go
-    type Converter struct {
-    	conversionFuncs          ConversionFuncs // 转换类型到转换函数的map, key为源和目标type，value为转换函数
-	structFieldDests map[typeNamePair][]typeNamePair // 在转换过程中目标结构中的字段可以由源结构中的哪些(由一个list组成)字段(字段名称，和类型）转换
-	structFieldSources map[typeNamePair][]typeNamePair // 同上一个字段做反方向处理
-	inputFieldMappingFuncs map[reflect.Type]FieldMappingFunc //保存将一个map映射为struct的函数
-    }
+```go
+type Converter struct {
+	conversionFuncs          ConversionFuncs // 转换类型到转换函数的map, key为源和目标type，value为转换函数
+structFieldDests map[typeNamePair][]typeNamePair // 在转换过程中目标结构中的字段可以由源结构中的哪些(由一个list组成)字段(字段名称，和类型）转换
+structFieldSources map[typeNamePair][]typeNamePair // 同上一个字段做反方向处理
+inputFieldMappingFuncs map[reflect.Type]FieldMappingFunc //保存将一个map映射为struct的函数
+}
+```
 
 Convert函数用于在两个对象之间做转换，`src`, `dest`分别是源端和目标端对象的指针，`flags`表明发生转换的方向，从源端还是目标端开始扫描。`meta`可以提供额外参数给Customer的convert函数。转换首先使用`c.genericConversions`中注册的转换函数，如果任何一个成功转换就直接返回，否则就调用`c.doConversion`。该函数会调用各个Customer的convert函数，知道成功。
 
-    :::go
-    func (c *Converter) Convert(src, dest interface{}, flags FieldMatchingFlags, meta *Meta) error {
-    	if len(c.genericConversions) > 0 {
-    		// TODO: avoid scope allocation
-    		s := &scope{converter: c, flags: flags, meta: meta}
-    		for _, fn := range c.genericConversions {
-    			if ok, err := fn(src, dest, s); ok {
-    				return err
-    			}
-    		}
-    	}
-    	return c.doConversion(src, dest, flags, meta, c.convert)
-    }
+```go
+func (c *Converter) Convert(src, dest interface{}, flags FieldMatchingFlags, meta *Meta) error {
+	if len(c.genericConversions) > 0 {
+		// TODO: avoid scope allocation
+		s := &scope{converter: c, flags: flags, meta: meta}
+		for _, fn := range c.genericConversions {
+			if ok, err := fn(src, dest, s); ok {
+				return err
+			}
+		}
+	}
+	return c.doConversion(src, dest, flags, meta, c.convert)
+}
+```
 
 由于`struct`中字段可能是新的`struct`或者指针或者`map`等复杂数据结构，所以在转换的过程中会有stack的概念，每遇到一个新的复杂数据结构式转换就需要将这些结构压入stack。`Scope`中有两个stack分别用于记录源端和目标端需要转换的字段。
 
@@ -80,12 +77,13 @@ Feature gates are a set of key=value pairs that describe alpha or experimental f
 
 Feature的数据结构
 
-    :::go
-    type Feature struct {
-    	utilfeature.FeatureSpec            //控制默认是否打开,和发布前版本号
-    	MinimumVersion   *version.Version  //最小需要版本号
-    	HiddenInHelpText bool
-    }
+```go
+type Feature struct {
+	utilfeature.FeatureSpec            //控制默认是否打开,和发布前版本号
+	MinimumVersion   *version.Version  //最小需要版本号
+	HiddenInHelpText bool
+}
+```
 
 关于K8S的版本规则可以参见[版本](#version)。
 

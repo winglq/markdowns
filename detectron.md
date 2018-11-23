@@ -1,10 +1,8 @@
+---
 title: Detectron使用小结
-author: qing
 date: 2018-05-02
-description: Facebook Detectron
 tags:
-category:
-acl: 00
+---
 
 # Detectron使用
 

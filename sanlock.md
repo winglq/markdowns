@@ -1,11 +1,8 @@
+---
 title: SANLock help generated from pydoc
-author: qing
 date: 2017-11-24
-description: SANLock help generated from pydoc. Do some formatting for the generated doc.
-tags:
-category:
+---
 
-# Help on module sanlock
 
 ## NAME
     sanlock

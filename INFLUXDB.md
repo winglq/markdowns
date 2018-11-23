@@ -1,16 +1,12 @@
+---
 title: Influxdb 代码分析
-author: qing
 date: 2018-07-2 6
-description: In fluxdb代码分析
-tags:
-category:
-acl: 11
+---
 
-# Influxdb代码  分析
 
 ## 版本         
 influxdb 0.11.1 
-                
+
 ## 目录结构
 TSDBStore根目录: /var/lib/influxdb/data
 每个database为TSDBStore根目录下的一个字母，这里称为DB目录
@@ -26,19 +22,20 @@ Metadata 目录从配置文件读取，默认是不是？ /var/lib/influxdb/meta
 
 连接到meta server获得当前cluster数据的snapshot。获取snapshot的url为。snapshot会放到当前client的Cachedata中。CacheData或者Snapshot的数据如下
 
-    :::go
-    type Data struct {
-    	Term      uint64 // associated raft term
-    	Index     uint64 // associated raft index
-    	ClusterID uint64
-    	MetaNodes []NodeInfo
-    	DataNodes []NodeInfo
-    	Databases []DatabaseInfo
-    	Users     []UserInfo
-    	MaxNodeID       uint64
-    	MaxShardGroupID uint64
-    	MaxShardID      uint64
-    }
+```go
+type Data struct {
+	Term      uint64 // associated raft term
+	Index     uint64 // associated raft index
+	ClusterID uint64
+	MetaNodes []NodeInfo
+	DataNodes []NodeInfo
+	Databases []DatabaseInfo
+	Users     []UserInfo
+	MaxNodeID       uint64
+	MaxShardGroupID uint64
+	MaxShardID      uint64
+}
+```
 
 然后启动一个routine poll整个cluster的snapshot，并更新本地的CacheData。meta data server 端会根据index判断是否有比idnex更新的snapshot可用，如果没有的话meta data server不会返回，这个请求就会一直等待response。
 
@@ -118,17 +115,20 @@ WritePoint 服务订阅订阅服务的points channel。WritePoint服务有新的
 
   写入的机器根据point的hash值然后用shard group里Shard数量求余获得。
 
-    sgi.Shards[hash%uint64(len(sgi.Shards))] // sgi: Shard group info.
+```go
+sgi.Shards[hash%uint64(len(sgi.Shards))] // sgi: Shard group info.
+```
 
   上面的hash通过下面的代码求出。
 
-    :::go
-    func (p *point) HashID() uint64 {
-             h := fnv.New64a()
-             h.Write(p.key)
-             sum := h.Sum64()
-             return sum
-    }
+```go
+func (p *point) HashID() uint64 {
+         h := fnv.New64a()
+         h.Write(p.key)
+         sum := h.Sum64()
+         return sum
+}
+```
 
   其中`p.key`为measurement+sorted tags。所以同一series的point会被写到同一个机器上。
 
@@ -143,15 +143,16 @@ WritePoint 服务订阅订阅服务的points channel。WritePoint服务有新的
 
 1. 根据Retention Policy名字查到对应的Retention Policy的数据结构，如下所示：
 
-        :::go
-        type RetentionPolicyInfo struct {
-        	Name               string
-        	ReplicaN           int
-        	Duration           time.Duration
-        	ShardGroupDuration time.Duration
-        	ShardGroups        []ShardGroupInfo
-        	Subscriptions      []SubscriptionInfo
-        }
+    ```go
+    type RetentionPolicyInfo struct {
+    	Name               string
+    	ReplicaN           int
+    	Duration           time.Duration
+    	ShardGroupDuration time.Duration
+    	ShardGroups        []ShardGroupInfo
+    	Subscriptions      []SubscriptionInfo
+    }
+    ```
 
 2. 在得到的RetentionPolicyInfo中遍历所有ShardGroups，查找Point的插入时间在shard group的开始时间和结束时间之间的那个shard group。
 3. 如果存在这样的shard group，不需要创建新的shard group，否则进入第四部
@@ -164,15 +165,16 @@ WritePoint 服务订阅订阅服务的points channel。WritePoint服务有新的
    * 随机挑选一个DataNode开始给每个Shard分配replicaN个owner。
    * Shard group的duration根据对应的policy计算，代码如下。rp duration在半年以上的sg的duration为一周，大于两天的为一天，两天以下的为一小时。
 
-        :::go
-        func shardGroupDuration(d time.Duration) time.Duration {
-                if d >= 180*24*time.Hour || d == 0 { // 6 months or 0
-                        return 7 * 24 * time.Hour
-                } else if d >= 2*24*time.Hour { // 2 days
-                        return 1 * 24 * time.Hour
-                }
-                return 1 * time.Hour
-        }
+    ```go
+    func shardGroupDuration(d time.Duration) time.Duration {
+            if d >= 180*24*time.Hour || d == 0 { // 6 months or 0
+                    return 7 * 24 * time.Hour
+            } else if d >= 2*24*time.Hour { // 2 days
+                    return 1 * 24 * time.Hour
+            }
+            return 1 * time.Hour
+    }
+    ```
 
 
 5. 因为client调用执行raft的命令会等待到命令执行成功并且CacheData被更新，所以命令执行完后重新查找shard group info并返回。
@@ -220,52 +222,56 @@ Cursor和Iterator的差别是，Cursor只取一列数据，Iteration会取query�
 
 Iterator接口
 
-    :::go
-    type Iterator interface {
-        Close() error
-    }
+```go
+type Iterator interface {
+    Close() error
+}
+```
 
 
 FloatIterator接口
 
-    :::go
-    type FloatIterator interface {
-            Iterator
-            Next() *FloatPoint
-    }
+```go
+type FloatIterator interface {
+        Iterator
+        Next() *FloatPoint
+}
+```
 
 engineFloatCursor是包括cache中Series+Field的值，和Series+Field在store中的值(只提供对应的Cursor)
 
 store需要实现如下接口，以便influxql创建迭代器。
 
-    :::go
-    type IteratorCreator interface {
-    	// Creates a simple iterator for use in an InfluxQL query.
-    	CreateIterator(opt IteratorOptions) (Iterator, error)
-    
-    	// Returns the unique fields and dimensions across a list of sources.
-    	FieldDimensions(sources Sources) (fields, dimensions map[string]struct{}, err error)
-    
-    	// Returns the series keys that will be returned by this iterator.
-    	SeriesKeys(opt IteratorOptions) (SeriesList, error)
-    }
+```go
+type IteratorCreator interface {
+	// Creates a simple iterator for use in an InfluxQL query.
+	CreateIterator(opt IteratorOptions) (Iterator, error)
+
+	// Returns the unique fields and dimensions across a list of sources.
+	FieldDimensions(sources Sources) (fields, dimensions map[string]struct{}, err error)
+
+	// Returns the series keys that will be returned by this iterator.
+	SeriesKeys(opt IteratorOptions) (SeriesList, error)
+}
+```
 
 下面是influxql和store交互的接口。
 
-    :::go
-    type TSDBStore interface {
-    	CreateShard(database, policy string, shardID uint64) error
-    	WriteToShard(shardID uint64, points []models.Point) error
-    
-    	DeleteDatabase(name string) error
-    	DeleteMeasurement(database, name string) error
-    	DeleteRetentionPolicy(database, name string) error
-    	DeleteSeries(database string, sources []influxql.Source, condition influxql.Expr) error
-    	ExecuteShowFieldKeysStatement(stmt *influxql.ShowFieldKeysStatement, database string) (models.Rows, error)
-    	ExecuteShowTagValuesStatement(stmt *influxql.ShowTagValuesStatement, database string) (models.Rows, error)
-    	ExpandSources(sources influxql.Sources) (influxql.Sources, error)
-    	ShardIteratorCreator(id uint64) influxql.IteratorCreator
-    }
+```go
+type TSDBStore interface {
+	CreateShard(database, policy string, shardID uint64) error
+	WriteToShard(shardID uint64, points []models.Point) error
+
+	DeleteDatabase(name string) error
+	DeleteMeasurement(database, name string) error
+	DeleteRetentionPolicy(database, name string) error
+	DeleteSeries(database string, sources []influxql.Source, condition influxql.Expr) error
+	ExecuteShowFieldKeysStatement(stmt *influxql.ShowFieldKeysStatement, database string) (models.Rows, error)
+	ExecuteShowTagValuesStatement(stmt *influxql.ShowTagValuesStatement, database string) (models.Rows, error)
+	ExpandSources(sources influxql.Sources) (influxql.Sources, error)
+	ShardIteratorCreator(id uint64) influxql.IteratorCreator
+}
+```
 
 ## TCP server实现
 

@@ -1,10 +1,8 @@
+---
 title: Back To Eden Gardening 有机种植
-author: qing
 date: 2018-06-11
-description: Back To Eden Gardening 有机种植
 tags:
-category:
-acl: 00
+---
 
 # Back To Eden Gardening 有机种植
 
