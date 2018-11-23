@@ -1,12 +1,8 @@
+---
 title: CentOS 7下安装Tensorflow
-author: qing
 date: 2018-06-06
-description: CentOS 7下安装Tensorflow
-tags:
-category:
-acl: 00
+---
 
-# CentOS 7下安装Tensorflow
 
 ## 安装和配置
 
