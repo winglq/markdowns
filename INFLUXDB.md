@@ -204,6 +204,7 @@ httpd handle初始化QueryExecutor为cluster的QueryExecutor。query的url和sql
 
 远程Iteration用于读取cluster中其他节点的数据。远程Iteration实际是维持一个TCP连接到对应的节点，远程节点构建一个本地的Iteration，然后将数据写入conn中。
 
+
 #### query_executor跟store的交互
 query_executor.go文件中：
 
@@ -281,6 +282,23 @@ type TSDBStore interface {
 ## v1.6.0 Influxql
 
 Influxql的语法使用AST(abstract syntax tree)组织。
+
+### select code path
+
+query的结果通过ExecutorQuery的Send新结果到ExecutorQuery.Results channel。每个query都是一个独立的goroutine。
+
+    ExecuteQuery
+      executeQuery
+        ExecuteStatement
+          statementExecutor.createIterators
+            query.Select
+              Prepare
+              preparedStatement.Select
+                buildCursor
+                  buildAuxIterator
+                    IteratorCreator.CreateIterator
+
+注意：创建Iteration的时候opt里需要有Authorizor，不能为nil，否则Iteration将无法取到数据。
 
 ## 数据Index
 
