@@ -213,11 +213,12 @@ ics = append(ics, newRemoteIteratorCreator(dialer, nodeID, shardIDs))
 
 FloatCursor接口
 
-    :::go
-    type floatCursor interface {
-            cursor
-            nextFloat() (t int64, v float64)
-    }
+```go
+type floatCursor interface {
+        cursor
+        nextFloat() (t int64, v float64)
+}
+```
 
 Cursor和Iterator的差别是，Cursor只取一列数据，Iteration会取query相关的所有列。
 
