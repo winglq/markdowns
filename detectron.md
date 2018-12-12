@@ -2,6 +2,7 @@
 title: Detectron使用小结
 date: 2018-05-02
 tags:
+draft: true
 ---
 
 # Detectron使用

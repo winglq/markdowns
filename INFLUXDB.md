@@ -1,6 +1,7 @@
 ---
 title: Influxdb 代码分析
 date: 2018-07-26
+tags: [golang, influxdb]
 ---
 
 

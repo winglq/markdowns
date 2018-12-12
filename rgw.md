@@ -300,13 +300,3 @@ Peer的过程主要由下面几个状态组成：
 ## OSD的启动
 
 OSD Service在init函数中会启动4个Thread Pool，分别是：peering_tp，osd_op_tp，disk_tp，command_tp。其中只有osd_op_tp是ShardedThreadPool，其他都是ThreadPool。ShardedThreadPool默认的shard是5，thread number是2。
-
-## ToDO
-
-* Thread
-* GC
-* zone/zone group
-* What Is Bucket Index?
-* Ceph Snapshot
-
-It’s a different kind of metadata, and kept separately. The bucket index holds a key-value map in rados objects. By default it is a single rados object per bucket, but it is possible since Hammer to shard that map over multiple rados objects. The map itself is kept in omap, associated with each rados object. The key of each omap is the name of the objects, and the value holds some basic metadata of that object – metadata that shows up when listing the bucket. Also, each omap holds a header, and we keep some bucket accounting metadata in that header (number of objects, total size, etc.).

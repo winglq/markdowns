@@ -1,6 +1,7 @@
 ---
 title: ReactJS安装问题
 date: 2018-07-05
+draft: true
 ---
 
 **不能在tmux中运行下面命令**
