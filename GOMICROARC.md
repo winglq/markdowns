@@ -1,5 +1,5 @@
 ---
-title: go-micro 代码阅读笔记-构架
+title: go-micro 代码阅读笔记1-构架
 date: 2018-12-13
 tags: [golang, go-micro]
 draft: true
@@ -36,3 +36,7 @@ Registry模块用于注册各个服务的名称，go-micro默认使用consul作�
 ## Broker模块
 
 Broker模块用于go-micro的消息驱动功能。Client发送消息到某个Topic，监听这个Topic的一个或多个服务可以做出对应处理。go-micro实现了很多Broker对应的plugin，比如Rabbitmq。
+
+# 总结
+
+从代码来看，go-micro各模块功能定义还是非常清晰的。各模块都有多个实现可以根据需要选择对应的实现，整个代码也非常灵活。
