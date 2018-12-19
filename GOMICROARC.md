@@ -53,6 +53,7 @@ Server模块用来管理微服务服务器，比如启动关闭等。Server在�
 ```
 
 服务发现过程如上图所示：
+
 1. 发送服务名称请求给Register
 2. Register返回所有node的地址
 3. 根据策略选择node
