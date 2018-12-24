@@ -1,6 +1,7 @@
 ---
 title: K8S代码分析
 date: 2018-03-29
+draft: true
 ---
 
 ## K8S的<a name="version">版本</a>

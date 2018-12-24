@@ -1,12 +1,8 @@
-title: To read
-author: qing
+---
+title: 读书目录
 date: 2018-03-29
-description: To read
-tags:
-category:
-acl: 00
-
-# Algorithm need to dig deep
+draft: true
+---
 
 * Paxos
 * LSM

@@ -1,6 +1,7 @@
 ---
 title: 修剪番茄植株的方法
 date: 2018-07-26
+tags: [garden]
 ---
 
 [原文](https://finegardening.com/article/pruning-tomatoes)

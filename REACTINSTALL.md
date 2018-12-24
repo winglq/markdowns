@@ -1,11 +1,8 @@
+---
 title: ReactJS安装问题
-author: qing
 date: 2018-07-05
-description: ReactJS安装问题
-tags:
-category:
-
-# ReactJS安装问题
+draft: true
+---
 
 **不能在tmux中运行下面命令**
 
