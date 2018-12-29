@@ -1,7 +1,6 @@
 ---
 title: Oauth2 Authorization Code Grant模式分析 
 date: 2018-12-28
-draft: true
 tags: ["oauth2", "golang"]
 ---
 
@@ -64,3 +63,91 @@ D. 客户端使用C中获取的Authorization Code，发送请求给授权服务�
 E. 授权服务器接到请求后会认证客户端和步骤A中的客户端是同一个并且密码正确，检查Code，还要确保回调地址和C中的回调地址是同一个。如果所有检查都通过，授权服务器返回访问令牌和更新令牌（可选）。
 
 我对这个流程比较困惑的是**为什么授权服务器不在步骤C直接在回调地址里包含两个令牌作为query parameter，而是要在E中才真正返回**。Google了下我的疑问，在Stack Overflow找到了[一个相同的问题](https://stackoverflow.com/questions/13387698/why-is-there-an-authorization-code-flow-in-oauth2-when-implicit-flow-works-s)，得分最高的回答解开了这个谜团。虽然OAuth2服务器必须使用HTTPS协议访问，但是浏览器和客户端之间无法保证是使用HTTPS的，因此如果在步骤C中返回令牌就很有可能被截获。因此在步骤C中只返回一个Authorization Code。即使这个Code和client_id被截获了，由于截获者没有client_secret，他也无法完成步骤E中的客户端认证，从而无法获取令牌。而任何一方跟授权服务器之间的访问由于使用了HTTPS而无法被截获。
+
+## 使用go的oauth2获取github用户的用户名和ID
+
+下面通过一个golang的例子说明Authorization Code Grant的各个过程。要运行下面的代码需要有一个Github的账户，并在账户的`Settings->Developer settings`中新建一个OAuth App。有了client_id和client_secret可以替换代码中相应的变量。Authorization callback URL这个字段一定要填写正确，这个就是获得code和令牌后的回调地址，Github会验证回调地址是否一致。
+
+各个步骤在代码中都有注释，步骤B不在其中，是因为这个是Github跟用户之间的交互，客户端不需要干预。各个步骤还是非常清晰的，看代码应该就能明白，不多做说明了。
+
+程序编译运行后访问服务器的9191端口就可以看到结果了。
+
+```go
+package main
+
+import (
+	"context"
+	"io/ioutil"
+	"net/http"
+
+	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/github"
+)
+
+func Home(w http.ResponseWriter, r *http.Request) {
+	w.Write([]byte("hello oauth2"))
+}
+
+func Begin(c *oauth2.Config) func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// get authorization redirect url
+		redirectURL := c.AuthCodeURL("state")
+		// Step A:
+		http.Redirect(w, r, redirectURL, http.StatusFound)
+	}
+}
+
+func End(c *oauth2.Config) func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// Step C: get authorization code
+		queryCode := r.URL.Query().Get("code")
+		if queryCode == "" {
+			http.Error(w, "empty code", http.StatusBadRequest)
+			return
+		}
+		ctx := context.Background()
+
+		// Step D & E: get token
+		token, err := c.Exchange(ctx, queryCode)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		if !token.Valid() {
+			http.Error(w, "invalid token", http.StatusBadRequest)
+			return
+		}
+
+		// access resource after we get token
+		url := "https://api.github.com/user"
+		// pass token to client
+		client := c.Client(ctx, token)
+		response, err := client.Get(url)
+		if err != nil {
+			http.Error(w, "get user info from github failed", http.StatusBadRequest)
+			return
+		}
+		userInfo, err := ioutil.ReadAll(response.Body)
+		if err != nil {
+			http.Error(w, "read body failed", http.StatusBadRequest)
+		}
+		response.Body.Close()
+		w.Write(userInfo)
+	}
+}
+
+func main() {
+        // configure oauth2 client setting
+	c := &oauth2.Config{
+		ClientID:     "your_client_id",
+		ClientSecret: "your_client_secret",
+		RedirectURL:  "http://your_host_name:9191/end", // match Authorization callback URL setting in github application
+		Endpoint:     github.Endpoint,
+		Scopes:       []string{},
+	}
+	http.HandleFunc("/", Home)
+	http.HandleFunc("/end", End(c))
+	http.HandleFunc("/begin", Begin(c))
+	http.ListenAndServe(":9191", nil)
+}
+```
