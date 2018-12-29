@@ -64,7 +64,7 @@ E. 授权服务器接到请求后会认证客户端和步骤A中的客户端是�
 
 我对这个流程比较困惑的是**为什么授权服务器不在步骤C直接在回调地址里包含两个令牌作为query parameter，而是要在E中才真正返回**。Google了下我的疑问，在Stack Overflow找到了[一个相同的问题](https://stackoverflow.com/questions/13387698/why-is-there-an-authorization-code-flow-in-oauth2-when-implicit-flow-works-s)，得分最高的回答解开了这个谜团。虽然OAuth2服务器必须使用HTTPS协议访问，但是浏览器和客户端之间无法保证是使用HTTPS的，因此如果在步骤C中返回令牌就很有可能被截获。因此在步骤C中只返回一个Authorization Code。即使这个Code和client_id被截获了，由于截获者没有client_secret，他也无法完成步骤E中的客户端认证，从而无法获取令牌。而任何一方跟授权服务器之间的访问由于使用了HTTPS而无法被截获。
 
-## 使用go的oauth2获取github用户的用户名和ID
+## 使用go oauth2 package获取github用户的用户名和ID
 
 下面通过一个golang的例子说明Authorization Code Grant的各个过程。要运行下面的代码需要有一个Github的账户，并在账户的`Settings->Developer settings`中新建一个OAuth App。有了client_id和client_secret可以替换代码中相应的变量。Authorization callback URL这个字段一定要填写正确，这个就是获得code和令牌后的回调地址，Github会验证回调地址是否一致。
 
