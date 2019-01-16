@@ -1,5 +1,5 @@
 ---
-title: hashicorp raft 代码分析1 - 选举leader。
+title: hashicorp raft 代码分析1 - 选举leader
 date: 2019-01-02
 tags: ["golang", "raft"]
 ---
