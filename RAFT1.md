@@ -6,7 +6,7 @@ tags: ["golang", "raft"]
 
 ## Raft介绍
 
-Raft是一种一致性算法，一致性算法的作用是将几个机器看成一个整体，即使其中的某台或者某几台机器发生故障，整个系统仍能正常工作。在Raft出现之前Paxos几乎是一致性算法的代名词。Ceph就使用Paxos算法同步各个节点的状态。虽然Raft和Paxos的作用相同，但是Raft算法更容易理解和实现，可以给学习一致性算法带来极大的方便。hashicorp的raft实现在各个开源项目中有着广泛应用，比如etcd，influxdb，consul。这里分析的代码是基于commit id: `9c733b2b`。
+Raft是一种一致性算法，一致性算法的作用是将几个机器看成一个整体，即使其中的某台或者某几台机器发生故障，整个系统仍能正常工作。在Raft出现之前Paxos几乎是一致性算法的代名词。Ceph就使用Paxos算法同步各个节点的状态。虽然Raft和Paxos的作用相同，但是Raft算法更容易理解和实现，可以给学习一致性算法带来极大的方便。hashicorp的raft实现在各个开源项目中有着广泛应用，比如influxdb，consul。这里分析的代码是基于commit id: `9c733b2b`。
 
 Raft只有三种节点：follower，candidate和leader。leader节点接收来自client的请求，接收到的请求以Log形式会被储存在本节点并分发到follower节点，如果整个集群中有半数以上节点已经存储了这个Log Entry，那么这个Log Entry就算提交（commit）成功了。Commit成功的Log Entry会被Apply到一个FSM（有限状态机）。FSM的任何一个状态都能通过Apply之前所有的Log Entry而获得，所以即便有节点因为故障而离开集群一段时间，在这个节点恢复时可以Apply它缺失的Log Entry而重新与其他节点保持一致。如果无限制保存Log Entry会需要无限大的磁盘空间，Raft提供Snapshot机制解决这个问题。Snapshot将当前FSM中需要保护的状态保存下来，然后删除这个状态之前的Log Entry，如果出现follower短暂故障而恢复，leader只需要先让follower install leader的最新snapshot，然后再将这个snapshot之后的Log Entry发送给这个follower就可以使其状态与leader保持一致。
 
