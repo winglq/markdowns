@@ -149,7 +149,7 @@ void rgw_get_buckets_obj(const rgw_user& user_id, string& buckets_obj_id)
 ```
 
 而这个Object位于在`user_uid_pool`中。定位到Bucket对应的对象后，rgw会发送一个`class=user, method=list_buckets`的操作。对应的Deamon收到这个操作后根据注册内容查找到的函数为`cls_user.cc::cls_user_list_buckets`，这个函数再调用`class_api.cc::cls_cxx_map_get_vals`获取多个omap的value,最终得到那个用户所有的Bucket。各个pool还有Bucket的关系如下所示。
-![](/statics/rgw_pool_arch.png)
+![](rgw_pool_arch.png)
 
 ### create bucket操作
 
