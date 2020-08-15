@@ -4,7 +4,7 @@ date: 2018-12-24
 tags: [golang]
 ---
 
-今天无意中搜到[Handling 1 Million Requests per Minute with Go](http://marcio.io/2015/07/handling-1-million-requests-per-minute-with-golang/)这篇博客，在评论区里有人发现文章中的代码有一个隐蔽的bug。在平时coding中这个问题比较容易被忽略，所以在此记录和分析下。
+无意中搜到[Handling 1 Million Requests per Minute with Go](http://marcio.io/2015/07/handling-1-million-requests-per-minute-with-golang/)这篇博客，在评论区里有人发现文章中的代码有一个隐蔽的bug。在平时coding中这个问题比较容易被忽略，所以在此记录和分析下。
 有问题的模拟代码如下。
 
 ```go

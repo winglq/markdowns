@@ -3,9 +3,6 @@ title: hashicorp MemDB 代码分析
 date: 2019-07-30
 tags: ["golang", "MVCC", "MemDB"]
 ---
-![power switch](/powerswitch.jpg)
-<center> Poor man's power switch </center>
-
 ## MemDB介绍
 
 MemDB是一个纯内存数据库。Consul使用MemDB存储元数据，因为Raft的数据可以通过Log和Snapshot恢复，所以数据库只需要在内存中就可以。
