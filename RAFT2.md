@@ -6,7 +6,7 @@ tags: ["golang", "raft"]
 
 ## 简介
 
-[上一篇文章](https://qingsblog.com/post/raft1/)介绍了Raft的基本概念以及选主过程，这篇文章分析raft的主要工作流程。
+[上一篇文章](/posts/raft1/)介绍了Raft的基本概念以及选主过程，这篇文章分析raft的主要工作流程。
 
 ## Raft工作流程
 

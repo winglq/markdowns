@@ -6,7 +6,7 @@ tags: ["golang", "raft"]
 
 ## 简介
 
-[上一篇文章](https://qingsblog.com/post/raft2/)介绍了Raft的主要工作流程。
+[上一篇文章](/posts/raft2/)介绍了Raft的主要工作流程。
 这篇文章主要介绍raft的snapshot机制。Raft中引入Snapshot的目的是为了避免存储过多的Log。比如集群维护一个状态Status，他的可取值是Running和Stopped。假设集群运行的过程中Status经历了Stopped->Running->Stopped->Running这几个状态。如果在最后的Running状态有个新的节点加入到集群，在没有做snapshot的情况下就要发送3次Log以使新节点的同步到Running的状态。如果在最后一个Running状态后，集群做了一次Snapshot，那新加节点只需要安装最新的snapshot，明显数据量会少很多。
 
 ## 生成Snapshot
